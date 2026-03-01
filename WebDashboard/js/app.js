@@ -370,13 +370,16 @@ function renderStrategyGrid() {
 }
 
 function renderLeaderboard(leaderboardArr) {
-    if (!leaderboardArr || leaderboardArr.length === 0) {
+    // Firebase may return arrays as objects with string keys if indices are non-sequential
+    const arrayData = Array.isArray(leaderboardArr) ? leaderboardArr : Object.values(leaderboardArr);
+
+    if (!arrayData || arrayData.length === 0) {
         uiTimingTbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: var(--text-secondary);">No live timing data available.</td></tr>`;
         return;
     }
 
     let html = "";
-    leaderboardArr.forEach(s => {
+    arrayData.forEach(s => {
         // Pit badge
         let rowClass = s.pit === 1 ? "row-in-pit" : "";
         let pitText = s.pit === 1 ? `<span class="pill-badge pill-gray">PIT</span>` : (s.st || "0");
