@@ -40,16 +40,27 @@ const uiStrategyStatus = document.getElementById("ui-strategy-status");
 let googleSheetStints = [];
 let currentTelemetryLap = 0;
 
+// Tab & Timing Elements
+const tabBtnStrategy = document.getElementById("tab-btn-strategy");
+const tabBtnTiming = document.getElementById("tab-btn-timing");
+const viewStrategy = document.getElementById("view-strategy");
+const viewTiming = document.getElementById("view-timing");
+const uiTimingTbody = document.getElementById("ui-timing-tbody");
+
 // App State
 let app = null;
 let db = null;
 let roomRef = null;
 let previousBestTime = null;
 
+// Default Firebase Configuration
+const DEFAULT_DB_URL = "https://scheitelpunkt-telemetry-default-rtdb.europe-west1.firebasedatabase.app/";
+const DEFAULT_API_KEY = "AIzaSyDcSBc62j_tRGhAS1oygmoUpS1NZmRt_sg";
+
 // Initialize from URL Params
 const urlParams = new URLSearchParams(window.location.search);
-const pDbUrl = urlParams.get('dbUrl');
-const pApiKey = urlParams.get('apiKey');
+const pDbUrl = urlParams.get('dbUrl') || DEFAULT_DB_URL;
+const pApiKey = urlParams.get('apiKey') || DEFAULT_API_KEY;
 const pRoom = urlParams.get('room');
 const pSheet = urlParams.get('sheet');
 
@@ -85,11 +96,34 @@ btnConnect.addEventListener("click", () => {
     }
 
     // Build URL to reload with parameters so it can be bookmarked
-    let newUrl = `${window.location.pathname}?dbUrl=${encodeURIComponent(db)}&apiKey=${encodeURIComponent(key)}&room=${encodeURIComponent(room)}`;
+    let newUrl = `${window.location.pathname}?room=${encodeURIComponent(room)}`;
+
+    if (db !== DEFAULT_DB_URL) {
+        newUrl += `&dbUrl=${encodeURIComponent(db)}`;
+    }
+    if (key !== DEFAULT_API_KEY) {
+        newUrl += `&apiKey=${encodeURIComponent(key)}`;
+    }
+
     if (sheet) {
         newUrl += `&sheet=${encodeURIComponent(sheet)}`;
     }
     window.location.href = newUrl;
+});
+
+// Tab Switching Logic
+tabBtnStrategy.addEventListener("click", () => {
+    tabBtnStrategy.classList.add("active");
+    tabBtnTiming.classList.remove("active");
+    viewStrategy.style.display = "block";
+    viewTiming.style.display = "none";
+});
+
+tabBtnTiming.addEventListener("click", () => {
+    tabBtnTiming.classList.add("active");
+    tabBtnStrategy.classList.remove("active");
+    viewTiming.style.display = "block";
+    viewStrategy.style.display = "none";
 });
 
 function connectToFirebase(dbUrl, apiKey, room) {
@@ -137,7 +171,18 @@ function updateDashboard(payload) {
     // Top Level
     uiDriverName.textContent = payload.driverName || "Unknown";
     uiCarId.textContent = payload.carId || "--";
-    uiSessionTime.textContent = payload.sessionTime || "--:--:--";
+    // Format Session Time (strip seconds and ms off "hh:mm:ss.ff" string)
+    let formattedSessionTime = "--:--";
+    if (payload.sessionTime) {
+        const timeParts = payload.sessionTime.toString().split(':');
+        if (timeParts.length >= 2) {
+            // HH:MM
+            formattedSessionTime = `${timeParts[0].padStart(2, '0')}:${timeParts[1].padStart(2, '0')}`;
+        } else {
+            formattedSessionTime = payload.sessionTime;
+        }
+    }
+    uiSessionTime.textContent = formattedSessionTime;
 
     // Fuel Box
     if (payload.fuel) {
@@ -228,6 +273,11 @@ function updateDashboard(payload) {
             cardStintPlanner.style.display = "none";
         }
     }
+
+    // Leaderboard
+    if (payload.leaderboard) {
+        renderLeaderboard(payload.leaderboard);
+    }
 }
 
 // Strategy Grid Logic
@@ -316,6 +366,38 @@ function renderStrategyGrid() {
     });
 
     uiStrategyTbody.innerHTML = html;
+}
+
+function renderLeaderboard(leaderboardArr) {
+    if (!leaderboardArr || leaderboardArr.length === 0) {
+        uiTimingTbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: var(--text-secondary);">No live timing data available.</td></tr>`;
+        return;
+    }
+
+    let html = "";
+    leaderboardArr.forEach(s => {
+        // Pit badge
+        let rowClass = s.pit === 1 ? "row-in-pit" : "";
+        let pitText = s.pit === 1 ? `<span class="pill-badge pill-gray">PIT</span>` : (s.st || "0");
+
+        let classColorBar = s.cl ? `<div style="width: 4px; height: 100%; position: absolute; left: 0; top: 0; background-color: ${s.cl}"></div>` : '';
+
+        html += `<tr class="${rowClass}" style="position: relative;">
+            <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:8px;">${s.p || '-'}</span></td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${s.c || '-'}</td>
+            <td style="font-weight: 600;">${s.n || 'Unknown'}</td>
+            <td style="font-family: monospace;">${s.g || '-'}</td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${s.i || '-'}</td>
+            <td style="font-family: monospace;">${s.l || '--:--.---'}</td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${s.b || '--:--.---'}</td>
+            <td style="font-family: monospace; font-size: 0.85rem;">${s.s1 || ''}</td>
+            <td style="font-family: monospace; font-size: 0.85rem;">${s.s2 || ''}</td>
+            <td style="font-family: monospace; font-size: 0.85rem;">${s.s3 || ''}</td>
+            <td>${pitText}</td>
+        </tr>`;
+    });
+
+    uiTimingTbody.innerHTML = html;
 }
 
 // Startup

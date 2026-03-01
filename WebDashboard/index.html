@@ -50,7 +50,7 @@
                 </div>
                 <div class="form-group">
                     <label for="input-room-id">Room ID</label>
-                    <input type="text" id="input-room-id" placeholder="123456_789">
+                    <input type="text" id="input-room-id" placeholder="iracing_123456_team_789">
                 </div>
                 <button id="btn-connect" class="primary-btn">Connect &amp; Start Event</button>
             </div>
@@ -179,6 +179,42 @@
                 </div>
             </section>
         </main>
+    </div> <!-- End of view-strategy -->
+
+    <!-- LIVE TIMING VIEW -->
+    <div id="view-timing" style="display: none; margin-top: 1rem;">
+        <main class="dashboard-grid">
+            <section class="card glass-panel span-2">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Live Timing Leaderboard</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Updates every 30s</span>
+                </div>
+                <div class="strategy-table-container">
+                    <table class="strategy-table timing-table" id="ui-timing-table">
+                        <thead>
+                            <tr>
+                                <th>Pos</th>
+                                <th>#</th>
+                                <th>Driver</th>
+                                <th>Gap</th>
+                                <th>Int</th>
+                                <th>Last</th>
+                                <th>Best</th>
+                                <th>S1</th>
+                                <th>S2</th>
+                                <th>S3</th>
+                                <th>Stops</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ui-timing-tbody">
+                            <!-- Injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
     </div>
 
     <!-- Application Logic -->
