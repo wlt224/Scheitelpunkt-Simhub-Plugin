@@ -77,6 +77,8 @@ const tabBtnTiming = document.getElementById("tab-btn-timing");
 const viewStrategy = document.getElementById("view-strategy");
 const viewTiming = document.getElementById("view-timing");
 const uiTimingTbody = document.getElementById("ui-timing-tbody");
+const uiTimingGapHeader = document.getElementById("ui-timing-gap-header");
+const uiTimingIntHeader = document.getElementById("ui-timing-int-header");
 
 // App State
 let app = null;
@@ -216,6 +218,7 @@ function connectToFirebase(dbUrl, apiKey, room) {
 
 function updateDashboard(payload) {
     const playerLeaderboardEntry = getPlayerLeaderboardEntry(payload);
+    const isDeltaMode = shouldUseDeltaToBestMode(payload?.timing?.sessionTypeName);
 
     // Top Level
     if (payload.timing && payload.timing.driverName) {
@@ -328,8 +331,9 @@ function updateDashboard(payload) {
     renderPlayerStintChart(payload.playerStint, payload.timing?.driverName || uiDriverName.textContent);
 
     // Leaderboard
+    updateTimingHeaders(isDeltaMode);
     if (payload.leaderboard) {
-        renderLeaderboard(payload.leaderboard.leaderboard || payload.leaderboard);
+        renderLeaderboard(payload.leaderboard.leaderboard || payload.leaderboard, { isDeltaMode });
     }
 }
 
@@ -805,6 +809,11 @@ function getPlayerLeaderboardEntry(payload) {
         return null;
     }
 
+    const ownTeamRow = rows.find(row => row?.me === true || row?.me === 1);
+    if (ownTeamRow) {
+        return ownTeamRow;
+    }
+
     const driverName = String(payload?.timing?.driverName || payload?.playerStint?.driverName || "")
         .trim()
         .toLowerCase();
@@ -887,6 +896,23 @@ function formatLapDisplay(value) {
     return seconds === null ? LAP_TIME_PLACEHOLDER : formatLapTime(seconds);
 }
 
+function formatDeltaToBestDisplay(value) {
+    if (value === undefined || value === null || value === "") {
+        return "-";
+    }
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+        return "-";
+    }
+
+    if (numericValue <= 0) {
+        return "0.000";
+    }
+
+    return `+${numericValue.toFixed(3)}`;
+}
+
 function formatLapTime(seconds) {
     if (!Number.isFinite(seconds) || seconds <= 0) {
         return LAP_TIME_PLACEHOLDER;
@@ -928,7 +954,28 @@ function toPositiveNumber(value) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function renderLeaderboard(leaderboardArr) {
+function shouldUseDeltaToBestMode(sessionTypeName) {
+    const sessionText = String(sessionTypeName || "").trim().toLowerCase();
+    if (!sessionText) {
+        return false;
+    }
+
+    return sessionText.includes("practice") || sessionText.includes("qual");
+}
+
+function updateTimingHeaders(isDeltaMode) {
+    if (uiTimingGapHeader) {
+        uiTimingGapHeader.textContent = isDeltaMode ? "Delta" : "Gap";
+    }
+
+    if (uiTimingIntHeader) {
+        uiTimingIntHeader.textContent = isDeltaMode ? "" : "Int";
+    }
+}
+
+function renderLeaderboard(leaderboardArr, options = {}) {
+    const isDeltaMode = options.isDeltaMode === true;
+
     // Firebase may return arrays as objects with string keys if indices are non-sequential
     const arrayData = getLeaderboardRows(leaderboardArr);
 
@@ -940,17 +987,26 @@ function renderLeaderboard(leaderboardArr) {
     let html = "";
     arrayData.forEach(s => {
         // Pit badge
-        let rowClass = s.pit === 1 ? "row-in-pit" : "";
+        const rowClasses = [];
+        if (s.pit === 1) {
+            rowClasses.push("row-in-pit");
+        }
+        if (s.me === true || s.me === 1) {
+            rowClasses.push("row-own-team");
+        }
+
         let pitText = s.pit === 1 ? `<span class="pill-badge pill-gray">PIT</span>` : (s.st || "0");
+        const gapDisplay = isDeltaMode ? formatDeltaToBestDisplay(s.d) : (s.g || "-");
+        const intervalDisplay = isDeltaMode ? "" : (s.i || "-");
 
         let classColorBar = s.cl ? `<div style="width: 4px; height: 100%; position: absolute; left: 0; top: 0; background-color: ${s.cl}"></div>` : '';
 
-        html += `<tr class="${rowClass}" style="position: relative;">
+        html += `<tr class="${rowClasses.join(" ")}" style="position: relative;">
             <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:8px;">${s.p || '-'}</span></td>
             <td style="font-family: monospace; color: var(--text-secondary);">${s.c || '-'}</td>
             <td style="font-weight: 600;">${s.n || 'Unknown'}</td>
-            <td style="font-family: monospace;">${s.g || '-'}</td>
-            <td style="font-family: monospace; color: var(--text-secondary);">${s.i || '-'}</td>
+            <td style="font-family: monospace;">${gapDisplay}</td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${intervalDisplay}</td>
             <td style="font-family: monospace;">${formatLapDisplay(s.l)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.a5)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.b)}</td>
