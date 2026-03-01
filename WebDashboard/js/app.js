@@ -76,6 +76,7 @@ function init() {
     }
 
     if (pDbUrl && pApiKey && pRoom) {
+        overlay.classList.add("hidden");
         connectToFirebase(pDbUrl, pApiKey, pRoom);
     } else {
         // Show overlay if credentials are missing
@@ -85,13 +86,13 @@ function init() {
 
 // Connect Button Event
 btnConnect.addEventListener("click", () => {
-    const db = inputDbUrl.value.trim();
-    const key = inputApiKey.value.trim();
+    const db = inputDbUrl.value.trim() || DEFAULT_DB_URL;
+    const key = inputApiKey.value.trim() || DEFAULT_API_KEY;
     const room = inputRoomId.value.trim();
     const sheet = inputSheetUrl.value.trim();
 
-    if (!db || !key || !room) {
-        alert("Please provide the Database URL, API Key, and Room ID.");
+    if (!room) {
+        alert("Please provide the Room ID.");
         return;
     }
 
