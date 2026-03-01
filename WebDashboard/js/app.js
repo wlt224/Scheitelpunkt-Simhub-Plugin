@@ -145,13 +145,20 @@ function connectToFirebase(dbUrl, apiKey, room) {
         // Listen for Realtime Updates
         onValue(roomRef, (snapshot) => {
             const data = snapshot.val();
+            console.log("Firebase Data Received:", data);
             if (data) {
-                updateDashboard(data);
+                try {
+                    updateDashboard(data);
 
-                // Visual connection status
-                uiStatusDot.className = "status-dot connected";
-                uiStatusText.textContent = `Live: Room ${room}`;
-                uiLastUpdate.textContent = `Last sync: ${new Date().toLocaleTimeString()}`;
+                    // Visual connection status
+                    uiStatusDot.className = "status-dot connected";
+                    uiStatusText.textContent = `Live: Room ${room}`;
+                    uiLastUpdate.textContent = `Last sync: ${new Date().toLocaleTimeString()}`;
+                } catch (err) {
+                    console.error("Dashboard Update Error:", err);
+                    uiStatusText.textContent = "Data Error (Check Console)";
+                    uiStatusDot.className = "status-dot disconnected";
+                }
             } else {
                 uiStatusText.textContent = "Waiting for data...";
                 uiStatusDot.className = "status-dot disconnected";
