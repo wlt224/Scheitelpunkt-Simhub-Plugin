@@ -277,7 +277,7 @@ function updateDashboard(payload) {
 
     // Leaderboard
     if (payload.leaderboard) {
-        renderLeaderboard(payload.leaderboard);
+        renderLeaderboard(payload.leaderboard.leaderboard || payload.leaderboard);
     }
 }
 
