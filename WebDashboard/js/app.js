@@ -87,6 +87,7 @@ let stintChart = null;
 let fuelChart = null;
 let fuelHistory = [];
 let lastFuelSampleKey = "";
+const LAP_TIME_PLACEHOLDER = "--:--.--";
 
 // Default Firebase Configuration
 const DEFAULT_DB_URL = "https://scheitelpunkt-telemetry-default-rtdb.europe-west1.firebasedatabase.app/";
@@ -214,6 +215,8 @@ function connectToFirebase(dbUrl, apiKey, room) {
 }
 
 function updateDashboard(payload) {
+    const playerLeaderboardEntry = getPlayerLeaderboardEntry(payload);
+
     // Top Level
     if (payload.timing && payload.timing.driverName) {
         uiDriverName.textContent = payload.timing.driverName;
@@ -257,16 +260,18 @@ function updateDashboard(payload) {
 
     // Timing
     if (payload.timing) {
-        uiCurrentLapTime.textContent = payload.timing.currentLapTime || "--:--.---";
+        uiCurrentLapTime.textContent = formatLapDisplay(
+            payload.timing.lastLapTime ?? playerLeaderboardEntry?.l
+        );
         uiCompletedLaps.textContent = payload.timing.completedLaps || "0";
         currentTelemetryLap = parseFloat(payload.timing.completedLaps || 0);
         renderStrategyGrid();
 
-        const bestTime = payload.timing.bestLapTime || "--:--.---";
+        const bestTime = formatLapDisplay(payload.timing.bestLapTime ?? playerLeaderboardEntry?.b);
         uiBestLapTime.textContent = bestTime;
 
         // Flash animation when a new personal best is delivered
-        if (previousBestTime && bestTime !== previousBestTime && bestTime !== "--:--.---") {
+        if (previousBestTime && bestTime !== previousBestTime && bestTime !== LAP_TIME_PLACEHOLDER) {
             const card = uiBestLapTime.closest('.kpi-box');
             card.classList.remove("update-flash-best");
             void card.offsetWidth; // trigger reflow
@@ -785,6 +790,32 @@ function formatSessionTime(rawValue) {
     return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
+function getLeaderboardRows(leaderboardPayload) {
+    const leaderboard = leaderboardPayload?.leaderboard || leaderboardPayload;
+    if (!leaderboard) {
+        return [];
+    }
+
+    return Array.isArray(leaderboard) ? leaderboard : Object.values(leaderboard);
+}
+
+function getPlayerLeaderboardEntry(payload) {
+    const rows = getLeaderboardRows(payload?.leaderboard);
+    if (rows.length === 0) {
+        return null;
+    }
+
+    const driverName = String(payload?.timing?.driverName || payload?.playerStint?.driverName || "")
+        .trim()
+        .toLowerCase();
+
+    if (!driverName) {
+        return null;
+    }
+
+    return rows.find(row => String(row?.n || "").trim().toLowerCase() === driverName) || null;
+}
+
 function parseDurationSeconds(value) {
     if (value === undefined || value === null || value === "") {
         return null;
@@ -833,17 +864,40 @@ function parseDurationSeconds(value) {
     return null;
 }
 
-function formatLapTime(seconds) {
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-        return "--:--.---";
+function parseLapTimeSeconds(value) {
+    if (value === undefined || value === null || value === "") {
+        return null;
     }
 
-    const totalMilliseconds = Math.round(seconds * 1000);
-    const totalSeconds = Math.floor(totalMilliseconds / 1000);
+    if (typeof value === "number") {
+        return Number.isFinite(value) && value > 0 ? value : null;
+    }
+
+    const text = String(value).trim();
+    if (!text) {
+        return null;
+    }
+
+    const parsed = parseDurationSeconds(text);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function formatLapDisplay(value) {
+    const seconds = parseLapTimeSeconds(value);
+    return seconds === null ? LAP_TIME_PLACEHOLDER : formatLapTime(seconds);
+}
+
+function formatLapTime(seconds) {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+        return LAP_TIME_PLACEHOLDER;
+    }
+
+    const totalCentiseconds = Math.round(seconds * 100);
+    const totalSeconds = Math.floor(totalCentiseconds / 100);
     const minutes = Math.floor(totalSeconds / 60);
     const secondsPart = totalSeconds % 60;
-    const milliseconds = totalMilliseconds % 1000;
-    return `${String(minutes).padStart(2, "0")}:${String(secondsPart).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
+    const centiseconds = totalCentiseconds % 100;
+    return `${String(minutes).padStart(2, "0")}:${String(secondsPart).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`;
 }
 
 function formatSampleTime(value) {
@@ -876,7 +930,7 @@ function toPositiveNumber(value) {
 
 function renderLeaderboard(leaderboardArr) {
     // Firebase may return arrays as objects with string keys if indices are non-sequential
-    const arrayData = Array.isArray(leaderboardArr) ? leaderboardArr : Object.values(leaderboardArr);
+    const arrayData = getLeaderboardRows(leaderboardArr);
 
     if (!arrayData || arrayData.length === 0) {
         uiTimingTbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-secondary);">No live timing data available.</td></tr>`;
@@ -897,9 +951,9 @@ function renderLeaderboard(leaderboardArr) {
             <td style="font-weight: 600;">${s.n || 'Unknown'}</td>
             <td style="font-family: monospace;">${s.g || '-'}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${s.i || '-'}</td>
-            <td style="font-family: monospace;">${s.l || '--:--.---'}</td>
-            <td style="font-family: monospace; color: var(--text-secondary);">${s.a5 || '--:--.---'}</td>
-            <td style="font-family: monospace; color: var(--text-secondary);">${s.b || '--:--.---'}</td>
+            <td style="font-family: monospace;">${formatLapDisplay(s.l)}</td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.a5)}</td>
+            <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.b)}</td>
             <td style="font-family: monospace; font-size: 0.85rem;">${s.s1 || ''}</td>
             <td style="font-family: monospace; font-size: 0.85rem;">${s.s2 || ''}</td>
             <td style="font-family: monospace; font-size: 0.85rem;">${s.s3 || ''}</td>
