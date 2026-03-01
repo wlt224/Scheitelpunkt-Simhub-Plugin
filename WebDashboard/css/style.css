@@ -12,6 +12,10 @@
     --accent-red: #ff3b30;
     --accent-green: #34c759;
     --accent-blue: #0a84ff;
+    --chart-shell: rgba(6, 14, 24, 0.84);
+    --chart-grid: rgba(255, 255, 255, 0.08);
+    --chart-axis: rgba(156, 163, 175, 0.7);
+    --chart-avg: rgba(255, 255, 255, 0.9);
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -85,6 +89,12 @@ body {
     padding: 0.4rem 0.8rem;
     border-radius: 20px;
     border: 1px solid var(--surface-border);
+}
+
+.status-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .status-dot {
@@ -266,6 +276,12 @@ body {
     font-weight: 600;
 }
 
+.card-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-top: 0.35rem;
+}
+
 .driver-profile {
     display: flex;
     justify-content: space-between;
@@ -365,6 +381,40 @@ body {
     transition: width 0.5s cubic-bezier(0.1, 0.7, 0.1, 1);
 }
 
+.fuel-chart-shell {
+    position: relative;
+    height: 152px;
+    margin: 0 0 1.25rem 0;
+    border-radius: 16px;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at top left, rgba(52, 199, 89, 0.14), transparent 38%),
+        radial-gradient(circle at top right, rgba(10, 132, 255, 0.12), transparent 36%),
+        var(--chart-shell);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.fuel-chart-canvas,
+.stint-chart-canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.fuel-chart-empty,
+.stint-chart-empty {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    z-index: 2;
+}
+
 /* Session Info */
 .session-timer {
     display: flex;
@@ -385,6 +435,61 @@ body {
     font-size: 0.75rem;
     color: var(--text-secondary);
     margin-top: auto;
+}
+
+.stint-chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.stint-chart-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(72px, 1fr));
+    gap: 0.75rem;
+    width: min(100%, 420px);
+}
+
+.stint-chart-stat {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 0.75rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.stint-chart-stat-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.stint-chart-stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: monospace;
+    font-feature-settings: "tnum" 1;
+}
+
+.stint-chart-shell {
+    position: relative;
+    min-height: 290px;
+    border-radius: 18px;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at top left, rgba(10, 132, 255, 0.16), transparent 38%),
+        radial-gradient(circle at top right, rgba(255, 94, 87, 0.14), transparent 34%),
+        var(--chart-shell);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.stint-chart-canvas {
+    height: 290px;
 }
 
 /* Flash Animations */
@@ -566,4 +671,52 @@ body {
     background: rgba(156, 163, 175, 0.2);
     color: var(--text-secondary);
     border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+@media (max-width: 767px) {
+    .app-container {
+        padding: 1rem;
+    }
+
+    .top-nav {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.9rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .connection-status {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .driver-profile {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.8rem;
+    }
+
+    .time-remain {
+        font-size: 2.7rem;
+        text-align: center;
+    }
+
+    .stint-chart-header {
+        flex-direction: column;
+    }
+
+    .stint-chart-stats {
+        width: 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stint-chart-shell,
+    .stint-chart-canvas {
+        min-height: 250px;
+        height: 250px;
+    }
+
+    .fuel-chart-shell {
+        height: 136px;
+    }
 }

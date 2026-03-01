@@ -90,6 +90,12 @@
                     <div class="progress-bar-container">
                         <div class="progress-bar" id="ui-fuel-bar" style="width: 0%;"></div>
                     </div>
+                    <div class="fuel-chart-shell">
+                        <div class="fuel-chart-empty" id="ui-fuel-chart-empty">
+                            Waiting for fuel samples...
+                        </div>
+                        <canvas class="fuel-chart-canvas" id="ui-fuel-chart-canvas"></canvas>
+                    </div>
                     <div class="kpi-group grid-2">
                         <div class="kpi-box">
                             <div class="kpi-value" id="ui-fuel-per-lap">0.00</div>
@@ -159,6 +165,41 @@
                 </section>
             </main>
 
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-stint-chart" style="display: none;">
+                    <div class="card-header stint-chart-header">
+                        <div>
+                            <h3>Current Stint Pace</h3>
+                            <div class="card-subtitle" id="ui-stint-chart-driver">Player car</div>
+                        </div>
+                        <div class="stint-chart-stats">
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Avg</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-average">--:--.---</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Best</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-best">--:--.---</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">5L Avg</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-last-5">--:--.---</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Laps</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-lap-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stint-chart-shell">
+                        <div class="stint-chart-empty" id="ui-stint-chart-empty">
+                            Complete laps in the current stint to populate the pace chart.
+                        </div>
+                        <canvas class="stint-chart-canvas" id="ui-stint-chart-canvas"></canvas>
+                    </div>
+                </section>
+            </main>
+
             <!-- Endurance Strategy Grid from Google Sheets -->
             <main class="dashboard-grid" style="margin-top: 1.5rem;">
                 <section class="card glass-panel span-2" id="card-strategy-grid" style="display: none;">
@@ -209,6 +250,7 @@
                                     <th>Gap</th>
                                     <th>Int</th>
                                     <th>Last</th>
+                                    <th>5L Avg</th>
                                     <th>Best</th>
                                     <th>S1</th>
                                     <th>S2</th>
