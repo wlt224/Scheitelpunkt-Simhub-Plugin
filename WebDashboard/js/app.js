@@ -170,20 +170,24 @@ function connectToFirebase(dbUrl, apiKey, room) {
 
 function updateDashboard(payload) {
     // Top Level
-    uiDriverName.textContent = payload.driverName || "Unknown";
-    uiCarId.textContent = payload.carId || "--";
+    if (payload.timing && payload.timing.driverName) {
+        uiDriverName.textContent = payload.timing.driverName;
+    }
+
+    if (payload.fuel && payload.fuel.carId) {
+        uiCarId.textContent = payload.fuel.carId;
+    }
+
     // Format Session Time (strip seconds and ms off "hh:mm:ss.ff" string)
-    let formattedSessionTime = "--:--";
-    if (payload.sessionTime) {
-        const timeParts = payload.sessionTime.toString().split(':');
+    if (payload.timing && payload.timing.sessionTime) {
+        const timeParts = payload.timing.sessionTime.toString().split(':');
         if (timeParts.length >= 2) {
             // HH:MM
-            formattedSessionTime = `${timeParts[0].padStart(2, '0')}:${timeParts[1].padStart(2, '0')}`;
+            uiSessionTime.textContent = `${timeParts[0].padStart(2, '0')}:${timeParts[1].padStart(2, '0')}`;
         } else {
-            formattedSessionTime = payload.sessionTime;
+            uiSessionTime.textContent = payload.timing.sessionTime;
         }
     }
-    uiSessionTime.textContent = formattedSessionTime;
 
     // Fuel Box
     if (payload.fuel) {
