@@ -73,6 +73,7 @@
                     <div class="driver-profile">
                         <div class="driver-name" id="ui-driver-name">Waiting for data...</div>
                         <div class="driver-car" id="ui-car-id">--</div>
+                        <div class="driver-position" id="ui-driver-position" style="font-size: 1.2rem; font-weight: 600; color: var(--accent-blue); margin-top: 4px;">P--</div>
                     </div>
                 </section>
 
@@ -135,7 +136,9 @@
                         <h3>Session Time</h3>
                     </div>
                     <div class="session-timer">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 4px;"><span id="ui-session-elapsed">--:--:--</span> / <span id="ui-session-total">--:--:--</span></div>
                         <div class="time-remain" id="ui-session-time">--:--:--</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">remaining</div>
                     </div>
                     <div class="last-update" id="ui-last-update">
                         Last sync: Never

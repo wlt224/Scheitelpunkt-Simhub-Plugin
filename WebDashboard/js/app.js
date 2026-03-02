@@ -47,6 +47,9 @@ const uiCurrentLapTime = document.getElementById("ui-current-lap-time");
 const uiBestLapTime = document.getElementById("ui-best-lap-time");
 const uiCompletedLaps = document.getElementById("ui-completed-laps");
 const uiSessionTime = document.getElementById("ui-session-time");
+const uiDriverPosition = document.getElementById("ui-driver-position");
+const uiSessionElapsed = document.getElementById("ui-session-elapsed");
+const uiSessionTotal = document.getElementById("ui-session-total");
 
 // Stint Planner Elements
 const cardStintPlanner = document.getElementById("card-stint-planner");
@@ -229,8 +232,21 @@ function updateDashboard(payload) {
         uiCarId.textContent = payload.fuel.carId;
     }
 
+    if (payload.timing && payload.timing.position !== undefined) {
+        uiDriverPosition.textContent = `P${payload.timing.position}`;
+    }
+
     if (payload.timing && payload.timing.sessionTime !== undefined && payload.timing.sessionTime !== null) {
         uiSessionTime.textContent = formatSessionTime(payload.timing.sessionTime);
+
+        if (payload.timing.sessionTimeTotal !== undefined) {
+            const timeElapsed = Math.max(0, payload.timing.sessionTimeTotal - payload.timing.sessionTime);
+            uiSessionElapsed.textContent = formatSessionTime(timeElapsed);
+            uiSessionTotal.textContent = formatSessionTime(payload.timing.sessionTimeTotal);
+        } else {
+            uiSessionElapsed.textContent = "--:--:--";
+            uiSessionTotal.textContent = "--:--:--";
+        }
     }
 
     // Fuel Box
