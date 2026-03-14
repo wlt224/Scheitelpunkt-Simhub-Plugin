@@ -418,16 +418,40 @@ body {
 /* Session Info */
 .session-timer {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     padding: 1rem 0;
+    gap: 0.3rem;
+    text-align: center;
+}
+
+.session-subtext {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.2;
 }
 
 .time-remain {
-    font-size: 3.5rem;
+    font-size: clamp(2rem, 4vw, 3.5rem);
     font-weight: 700;
     font-family: monospace;
-    letter-spacing: -2px;
+    letter-spacing: -1px;
+}
+
+@media (max-width: 720px) {
+    .session-timer {
+        padding: 0.5rem 0;
+        gap: 0.15rem;
+    }
+
+    .time-remain {
+        font-size: clamp(1.8rem, 10vw, 2.85rem);
+    }
+
+    .session-subtext {
+        font-size: 0.8rem;
+    }
 }
 
 .last-update {

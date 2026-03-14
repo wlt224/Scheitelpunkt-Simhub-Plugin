@@ -240,9 +240,11 @@ function updateDashboard(payload) {
         uiSessionTime.textContent = formatSessionTime(payload.timing.sessionTime);
 
         if (payload.timing.sessionTimeTotal !== undefined) {
-            const timeElapsed = Math.max(0, payload.timing.sessionTimeTotal - payload.timing.sessionTime);
+            const tTotal = parseDurationSeconds(payload.timing.sessionTimeTotal) || 0;
+            const tLeft = parseDurationSeconds(payload.timing.sessionTime) || 0;
+            const timeElapsed = Math.max(0, tTotal - tLeft);
             uiSessionElapsed.textContent = formatSessionTime(timeElapsed);
-            uiSessionTotal.textContent = formatSessionTime(payload.timing.sessionTimeTotal);
+            uiSessionTotal.textContent = formatSessionTime(tTotal);
         } else {
             uiSessionElapsed.textContent = "--:--:--";
             uiSessionTotal.textContent = "--:--:--";
@@ -469,16 +471,27 @@ function updateFuelHistory(payload) {
         }
     }
 
+    const timestampMs = Date.parse(timestamp);
+    if (Number.isNaN(timestampMs)) {
+        return;
+    }
+
     fuelHistory.push({
         label: formatSampleTime(timestamp),
         timeLabel: formatSampleTime(timestamp),
+        timestampMs,
         liters,
         completedLaps,
         lapDisplay: completedLaps + trackPositionPercent
     });
 
-    if (fuelHistory.length > 72) {
-        fuelHistory = fuelHistory.slice(-72);
+    const maxWindowMs = 60 * 60 * 1000; // 60 minutes
+    const nowMs = Date.now();
+    fuelHistory = fuelHistory.filter(s => Number.isFinite(s.timestampMs) && s.timestampMs >= nowMs - maxWindowMs);
+
+    // Keep a reasonable upper limit to avoid browser slowness
+    if (fuelHistory.length > 1200) {
+        fuelHistory = fuelHistory.slice(-1200);
     }
 
     lastFuelSampleKey = sampleKey;
