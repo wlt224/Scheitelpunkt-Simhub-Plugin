@@ -603,6 +603,20 @@ body {
     color: var(--text-secondary);
 }
 
+.pit-marker-splash {
+    background: #ff9f0a;
+    box-shadow: 0 0 10px rgba(255, 159, 10, 0.75);
+    width: 5px;
+    height: 26px;
+    top: -10px;
+}
+
+.pit-marker-splash::after {
+    content: "S&D";
+    color: #ff9f0a;
+    white-space: nowrap;
+}
+
 .timeline-labels {
     display: flex;
     justify-content: space-between;

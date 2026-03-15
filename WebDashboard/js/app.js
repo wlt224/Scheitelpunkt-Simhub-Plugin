@@ -380,11 +380,10 @@ function updateDashboard(payload) {
                     tankSizeLaps = payload.fuel.maxLiters / payload.fuel.fuelPerLap;
                 }
 
-                // Show markers for upcoming stops within the race limit
+                // Collect all upcoming pit stops to identify the last one (S&D)
+                const pitStops = [];
                 while (nextPitLap < totalLaps && markerCount < 10) {
-                    const markerPct = (nextPitLap / totalLaps) * 100;
-                    uiPitMarkers.innerHTML += `<div class="pit-marker" style="left: ${markerPct}%"></div>`;
-
+                    pitStops.push((nextPitLap / totalLaps) * 100);
                     if (tankSizeLaps > 0) {
                         nextPitLap += tankSizeLaps;
                     } else {
@@ -392,6 +391,13 @@ function updateDashboard(payload) {
                     }
                     markerCount++;
                 }
+
+                // Render markers — the last one is highlighted as the Splash & Dash stop
+                pitStops.forEach((pct, idx) => {
+                    const isSplash = idx === pitStops.length - 1;
+                    const cls = isSplash ? "pit-marker pit-marker-splash" : "pit-marker";
+                    uiPitMarkers.innerHTML += `<div class="${cls}" style="left: ${pct}%"></div>`;
+                });
             }
         } else {
             cardStintPlanner.style.display = "none";
@@ -529,7 +535,7 @@ function updateFuelHistory(payload) {
     }
 
     fuelHistory.push({
-        label: formatSampleTime(timestamp),
+        label: `L${(completedLaps + trackPositionPercent).toFixed(1)}`,
         timeLabel: formatSampleTime(timestamp),
         timestampMs,
         liters,
@@ -554,7 +560,7 @@ function renderFuelChart() {
         return;
     }
 
-    if (fuelHistory.length < 2) {
+    if (fuelHistory.length < 1) {
         uiFuelChartEmpty.style.display = "flex";
         if (fuelChart) {
             fuelChart.data.labels = [];
