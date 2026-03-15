@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scheitelpunkt Cloud Telemetry</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Firebase App (the core Firebase SDK) -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js"></script>
+    <!-- Firebase Realtime Database -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="top-nav">
+            <div class="logo">
+                <span class="logo-icon">🏎️</span>
+                <h1>Scheitelpunkt <span>Team Data</span></h1>
+            </div>
+            <div class="connection-status" id="connection-status">
+                <span class="status-dot disconnected"></span>
+                <span class="status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Initial Setup Overlay (visible when no URL params provided) -->
+        <div id="setup-overlay" class="overlay hidden">
+            <div class="overlay-card glass-panel">
+                <h2>Connect to Telemetry</h2>
+                <p>Please enter your Firebase connection details and Room ID to view live data.</p>
+                <div class="form-group">
+                    <label for="db-url">Firebase Database URL</label>
+                    <input type="text" id="db-url" placeholder="https://[project].firebasedatabase.app/">
+                </div>
+                <div class="form-group">
+                    <label for="api-key">Firebase Web API Key</label>
+                    <input type="password" id="api-key" placeholder="AIzaSy...">
+                </div>
+                <div class="form-group">
+                    <label for="sheet-url">Google Sheet CSV URL (Optional Strategy)</label>
+                    <input type="url" id="sheet-url"
+                        placeholder="https://docs.google.com/spreadsheets/.../export?format=csv">
+                </div>
+                <div class="form-group">
+                    <label for="input-room-id">Room ID</label>
+                    <input type="text" id="input-room-id" placeholder="iracing_123456_team_789">
+                </div>
+                <button id="btn-connect" class="primary-btn">Connect &amp; Start Event</button>
+            </div>
+        </div>
+
+        <!-- TAB NAVIGATION -->
+        <div class="tab-navigation">
+            <button id="tab-btn-strategy" class="tab-btn active">Race Overview</button>
+            <button id="tab-btn-timing" class="tab-btn">Live Timing</button>
+        </div>
+
+        <!-- STRATEGY VIEW -->
+        <div id="view-strategy">
+            <main class="dashboard-grid">
+                <!-- Driver Info Card -->
+                <section class="card glass-panel span-2">
+                    <div class="card-header">
+                        <h3>Current Driver</h3>
+                    </div>
+                    <div class="driver-profile">
+                        <div class="driver-name" id="ui-driver-name">Waiting for data...</div>
+                        <div class="driver-car" id="ui-car-id">--</div>
+                        <div class="driver-position" id="ui-driver-position" style="font-size: 1.2rem; font-weight: 600; color: var(--accent-blue); margin-top: 4px;">P--</div>
+                    </div>
+                </section>
+
+                <!-- Fuel Status Card -->
+                <section class="card glass-panel highlight-card">
+                    <div class="card-header">
+                        <h3>Fuel Status</h3>
+                    </div>
+                    <div class="kpi-group row">
+                        <div class="kpi-box main-kpi">
+                            <div class="kpi-value"><span id="ui-fuel-liters">0.0</span><span class="unit">L</span></div>
+                            <div class="kpi-label">Remaining</div>
+                        </div>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="ui-fuel-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="fuel-chart-shell">
+                        <div class="fuel-chart-empty" id="ui-fuel-chart-empty">
+                            Waiting for fuel samples...
+                        </div>
+                        <canvas class="fuel-chart-canvas" id="ui-fuel-chart-canvas"></canvas>
+                    </div>
+                    <div class="kpi-group grid-2">
+                        <div class="kpi-box">
+                            <div class="kpi-value" id="ui-fuel-per-lap">0.00</div>
+                            <div class="kpi-label">Per Lap (L)</div>
+                        </div>
+                        <div class="kpi-box">
+                            <div class="kpi-value" id="ui-fuel-laps-remain">0.0</div>
+                            <div class="kpi-label">Laps Remain</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Timing Card -->
+                <section class="card glass-panel">
+                    <div class="card-header">
+                        <h3>Live Timing</h3>
+                    </div>
+                    <div class="kpi-group">
+                        <div class="kpi-box">
+                            <div class="kpi-value timing-text" id="ui-current-lap-time">--:--.--</div>
+                            <div class="kpi-label">Last Lap</div>
+                        </div>
+                        <div class="kpi-box">
+                            <div class="kpi-value timing-text highlight-text" id="ui-best-lap-time">--:--.--</div>
+                            <div class="kpi-label">Best Lap</div>
+                        </div>
+                        <div class="kpi-box">
+                            <div class="kpi-value" id="ui-completed-laps">0</div>
+                            <div class="kpi-label">Laps Completed</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Session Info Card -->
+                <section class="card glass-panel span-2">
+                    <div class="card-header">
+                        <h3>Session Time</h3>
+                    </div>
+                    <div class="session-timer">
+                        <div class="session-subtext"><span id="ui-session-elapsed">--:--:--</span> / <span id="ui-session-total">--:--:--</span></div>
+                        <div class="time-remain" id="ui-session-time">--:--:--</div>
+                        <div class="session-subtext">remaining</div>
+                    </div>
+                    <div class="last-update" id="ui-last-update">
+                        Last sync: Never
+                    </div>
+                </section>
+
+            </main>
+
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <!-- Stint Planner Timeline Card -->
+                <section class="card glass-panel span-2" id="card-stint-planner" style="display: none;">
+                    <div class="card-header">
+                        <h3>Race Progress</h3>
+                    </div>
+                    <div class="timeline-container">
+                        <div class="timeline-track">
+                            <div class="timeline-progress" id="ui-timeline-progress"></div>
+                            <div class="timeline-car" id="ui-timeline-car">🏎️</div>
+                            <!-- Pit stop markers will be injected here -->
+                            <div id="ui-pit-markers"></div>
+                        </div>
+                    </div>
+                    <div class="timeline-labels">
+                        <span>Lap <span id="ui-stint-current-lap">0</span></span>
+                        <span>Total Laps <span id="ui-stint-total-laps">--</span></span>
+                    </div>
+                </section>
+            </main>
+
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-stint-chart" style="display: none;">
+                    <div class="card-header stint-chart-header">
+                        <div>
+                            <h3>Current Stint Pace</h3>
+                            <div class="card-subtitle" id="ui-stint-chart-driver">Player car</div>
+                        </div>
+                        <div class="stint-chart-stats">
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Avg</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-average">--:--.--</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Best</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-best">--:--.--</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">5L Avg</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-last-5">--:--.--</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Laps</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-lap-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stint-chart-shell">
+                        <div class="stint-chart-empty" id="ui-stint-chart-empty">
+                            Complete laps in the current stint to populate the pace chart.
+                        </div>
+                        <canvas class="stint-chart-canvas" id="ui-stint-chart-canvas"></canvas>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Endurance Strategy Grid from Google Sheets -->
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-strategy-grid" style="display: none;">
+                    <div class="card-header"
+                        style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Endurance Strategy Plan</h3>
+                        <span id="ui-strategy-status" style="font-size: 0.8rem; color: var(--accent-green);">Live
+                            Linked</span>
+                    </div>
+                    <div class="strategy-table-container">
+                        <table class="strategy-table" id="ui-strategy-table">
+                            <thead>
+                                <tr>
+                                    <th>Stint</th>
+                                    <th>Driver</th>
+                                    <th>Target Laps</th>
+                                    <th>Pace</th>
+                                    <th>Tires</th>
+                                    <th>Fuel Add</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ui-strategy-tbody">
+                                <!-- Injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div> <!-- End of view-strategy -->
+
+        <!-- LIVE TIMING VIEW -->
+        <div id="view-timing" style="display: none; margin-top: 1rem;">
+            <main class="dashboard-grid">
+                <section class="card glass-panel span-2">
+                    <div class="card-header"
+                        style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Live Timing Leaderboard</h3>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Updates every 30s</span>
+                    </div>
+                    <div class="strategy-table-container">
+                        <table class="strategy-table timing-table" id="ui-timing-table">
+                            <thead>
+                                <tr>
+                                    <th>Pos</th>
+                                    <th>#</th>
+                                    <th>Driver</th>
+                                    <th id="ui-timing-gap-header">Gap</th>
+                                    <th id="ui-timing-int-header">Int</th>
+                                    <th>Last</th>
+                                    <th>5L Avg</th>
+                                    <th>Best</th>
+                                    <th>S1</th>
+                                    <th>S2</th>
+                                    <th>S3</th>
+                                    <th>Stops</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ui-timing-tbody">
+                                <!-- Injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+    </div>
+
+    <!-- Application Logic -->
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
