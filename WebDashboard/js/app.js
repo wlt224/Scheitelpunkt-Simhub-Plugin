@@ -83,6 +83,29 @@ const uiTimingTbody = document.getElementById("ui-timing-tbody");
 const uiTimingGapHeader = document.getElementById("ui-timing-gap-header");
 const uiTimingIntHeader = document.getElementById("ui-timing-int-header");
 
+// New feature DOM refs
+const cardDriverAverages = document.getElementById("card-driver-averages");
+const uiDriverAveragesBody = document.getElementById("ui-driver-averages-body");
+const cardTireStrategy = document.getElementById("card-tire-strategy");
+const uiTireStrategySubtitle = document.getElementById("ui-tire-strategy-subtitle");
+const uiTireBadges = document.getElementById("ui-tire-badges");
+const uiTireFasterLabel = document.getElementById("ui-tire-faster-label");
+const uiTireBarFill = document.getElementById("ui-tire-bar-fill");
+const uiTireBarDry = document.getElementById("ui-tire-bar-dry");
+const uiTireBarWet = document.getElementById("ui-tire-bar-wet");
+const uiTireDryDelta = document.getElementById("ui-tire-dry-delta");
+const uiTireWetDelta = document.getElementById("ui-tire-wet-delta");
+const uiTireCrossover = document.getElementById("ui-tire-crossover");
+const uiTireDryCount = document.getElementById("ui-tire-dry-count");
+const uiTireWetCount = document.getElementById("ui-tire-wet-count");
+const uiTireAvgDry = document.getElementById("ui-tire-avg-dry");
+const uiTireAvgWet = document.getElementById("ui-tire-avg-wet");
+
+// Gap trend tracking: driver name → array of {ts, gapRaw} (gap in seconds as a number)
+const gapHistory = new Map();
+const GAP_HISTORY_WINDOW_S = 120;
+const GAP_TREND_THRESHOLD_S = 0.5; // change smaller than this = neutral
+
 // App State
 let app = null;
 let db = null;
@@ -408,9 +431,14 @@ function updateDashboard(payload) {
 
     // Leaderboard
     updateTimingHeaders(isDeltaMode);
-    if (payload.leaderboard) {
-        renderLeaderboard(payload.leaderboard.leaderboard || payload.leaderboard, { isDeltaMode });
+    const leaderboardRows = payload.leaderboard ? (payload.leaderboard.leaderboard || payload.leaderboard) : null;
+    if (leaderboardRows) {
+        updateGapHistory(leaderboardRows);
+        renderLeaderboard(leaderboardRows, { isDeltaMode });
+        renderDriverAverages(leaderboardRows);
     }
+
+    renderTireStrategy(payload.tireStrategy);
 }
 
 // Strategy Grid Logic
@@ -1060,6 +1088,51 @@ function updateTimingHeaders(isDeltaMode) {
     }
 }
 
+/**
+ * Records the latest gap value for each driver and prunes stale entries.
+ * @param {Array} rows - leaderboard row array
+ */
+function updateGapHistory(rows) {
+    const now = Date.now();
+    const arr = Array.isArray(rows) ? rows : Object.values(rows);
+    arr.forEach(s => {
+        const key = s.n || s.c || String(s.p);
+        if (!key) return;
+        const gapRaw = parseGapSeconds(s.g);
+        if (gapRaw === null) return;
+        if (!gapHistory.has(key)) gapHistory.set(key, []);
+        const hist = gapHistory.get(key);
+        hist.push({ ts: now, gap: gapRaw, pos: s.p });
+        // prune old entries
+        const cutoff = now - GAP_HISTORY_WINDOW_S * 1000;
+        while (hist.length > 1 && hist[0].ts < cutoff) hist.shift();
+    });
+}
+
+/**
+ * Parses a gap string like "+5.123" or "1L" or "-" into seconds.
+ * Returns null when the gap cannot be parsed (leader, lapped, etc.).
+ */
+function parseGapSeconds(gapStr) {
+    if (!gapStr || gapStr === "-" || gapStr === "" || String(gapStr).includes("L")) return null;
+    const n = parseFloat(String(gapStr).replace("+", ""));
+    return isNaN(n) ? null : n;
+}
+
+/**
+ * Returns a trend object for the named driver: { dir: 'up'|'down'|'neutral', delta }
+ * 'up' = gap decreasing (gaining on leader), 'down' = gap growing (falling back).
+ */
+function getGapTrend(driverKey) {
+    const hist = gapHistory.get(driverKey);
+    if (!hist || hist.length < 2) return { dir: 'neutral', delta: 0 };
+    const oldest = hist[0];
+    const newest = hist[hist.length - 1];
+    const delta = newest.gap - oldest.gap; // positive = gap grew = losing
+    if (Math.abs(delta) < GAP_TREND_THRESHOLD_S) return { dir: 'neutral', delta };
+    return { dir: delta < 0 ? 'up' : 'down', delta };
+}
+
 function renderLeaderboard(leaderboardArr, options = {}) {
     const isDeltaMode = options.isDeltaMode === true;
 
@@ -1067,7 +1140,7 @@ function renderLeaderboard(leaderboardArr, options = {}) {
     const arrayData = getLeaderboardRows(leaderboardArr);
 
     if (!arrayData || arrayData.length === 0) {
-        uiTimingTbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-secondary);">No live timing data available.</td></tr>`;
+        uiTimingTbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: var(--text-secondary);">No live timing data available.</td></tr>`;
         return;
     }
 
@@ -1088,12 +1161,27 @@ function renderLeaderboard(leaderboardArr, options = {}) {
 
         let classColorBar = s.cl ? `<div style="width: 4px; height: 100%; position: absolute; left: 0; top: 0; background-color: ${s.cl}"></div>` : '';
 
+        // Gap trend arrow
+        const driverKey = s.n || s.c || String(s.p);
+        const trend = getGapTrend(driverKey);
+        let trendHtml;
+        if (s.p === 1 || s.p === "1") {
+            trendHtml = `<span class="trend-neutral">P1</span>`;
+        } else if (trend.dir === 'up') {
+            trendHtml = `<span class="trend-up" title="Gap closing ${Math.abs(trend.delta).toFixed(1)}s">&#8593;</span>`;
+        } else if (trend.dir === 'down') {
+            trendHtml = `<span class="trend-down" title="Gap growing ${Math.abs(trend.delta).toFixed(1)}s">&#8595;</span>`;
+        } else {
+            trendHtml = `<span class="trend-neutral">&mdash;</span>`;
+        }
+
         html += `<tr class="${rowClasses.join(" ")}" style="position: relative;">
             <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:8px;">${s.p || '-'}</span></td>
             <td style="font-family: monospace; color: var(--text-secondary);">${s.c || '-'}</td>
             <td style="font-weight: 600;">${s.n || 'Unknown'}</td>
             <td style="font-family: monospace;">${gapDisplay}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${intervalDisplay}</td>
+            <td style="text-align: center;">${trendHtml}</td>
             <td style="font-family: monospace;">${formatLapDisplay(s.l)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.a5)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.b)}</td>
@@ -1105,6 +1193,156 @@ function renderLeaderboard(leaderboardArr, options = {}) {
     });
 
     uiTimingTbody.innerHTML = html;
+}
+
+/**
+ * Renders the Driver Pace Comparison card.
+ * Shows each driver's 5-lap avg deviation from the class average as a bar.
+ */
+function renderDriverAverages(leaderboardPayload) {
+    const rows = getLeaderboardRows(leaderboardPayload);
+    if (!rows || rows.length < 2) {
+        if (cardDriverAverages) cardDriverAverages.style.display = 'none';
+        return;
+    }
+
+    // Parse 5-lap averages as seconds
+    const parsed = rows.map(s => {
+        const rawA5 = s.a5;
+        const secs = parseLapToSeconds(rawA5);
+        return { name: s.n || `#${s.c}`, secs, isPlayer: s.me === true || s.me === 1 };
+    }).filter(d => d.secs !== null && d.secs > 0);
+
+    if (parsed.length < 2) {
+        if (cardDriverAverages) cardDriverAverages.style.display = 'none';
+        return;
+    }
+
+    const avg = parsed.reduce((sum, d) => sum + d.secs, 0) / parsed.length;
+    const maxDeviation = Math.max(...parsed.map(d => Math.abs(d.secs - avg)), 0.001);
+    const barMaxPct = 45; // max bar width in %
+
+    let html = `<div class="driver-avg-section-header">5-Lap Avg — Team Avg: ${formatSecondsToLap(avg)}</div>`;
+    parsed.forEach(d => {
+        const dev = d.secs - avg; // positive = slower
+        const pct = Math.min(barMaxPct, (Math.abs(dev) / maxDeviation) * barMaxPct);
+        const isFaster = dev < 0;
+        const fillClass = isFaster ? 'faster' : 'slower';
+        const devSign = dev > 0 ? '+' : '';
+        const devStr = `${devSign}${dev.toFixed(3)}s`;
+        const nameClass = d.isPlayer ? 'driver-avg-name is-player' : 'driver-avg-name';
+        html += `
+        <div class="driver-avg-row">
+            <div class="${nameClass}" title="${d.name}">${d.name}</div>
+            <div class="driver-avg-track">
+                <div class="driver-avg-fill ${fillClass}" style="width: ${pct}%"></div>
+            </div>
+            <div class="driver-avg-value">${devStr}</div>
+        </div>`;
+    });
+
+    if (uiDriverAveragesBody) uiDriverAveragesBody.innerHTML = html;
+    if (cardDriverAverages) cardDriverAverages.style.display = 'flex';
+}
+
+/**
+ * Parses a lap time string "M:SS.mmm" or seconds number into seconds.
+ * Returns null on failure.
+ */
+function parseLapToSeconds(value) {
+    if (!value || value === '--:--.--' || value === '') return null;
+    if (typeof value === 'number') return value > 0 ? value : null;
+    const s = String(value).trim();
+    const colonIdx = s.indexOf(':');
+    if (colonIdx !== -1) {
+        const mins = parseFloat(s.substring(0, colonIdx));
+        const secs = parseFloat(s.substring(colonIdx + 1));
+        if (isNaN(mins) || isNaN(secs)) return null;
+        return mins * 60 + secs;
+    }
+    const n = parseFloat(s);
+    return isNaN(n) || n <= 0 ? null : n;
+}
+
+/** Formats a seconds value to "M:SS.mmm" */
+function formatSecondsToLap(secs) {
+    if (!secs || secs <= 0) return '--:--.--';
+    const m = Math.floor(secs / 60);
+    const s = secs - m * 60;
+    return `${m}:${s.toFixed(3).padStart(6, '0')}`;
+}
+
+/**
+ * Renders the Mixed Conditions Tire Strategy card.
+ * @param {object|null} payload - tireStrategy node from Firebase
+ */
+function renderTireStrategy(payload) {
+    if (!payload || (payload.dryCount === 0 && payload.wetCount === 0)) {
+        if (cardTireStrategy) cardTireStrategy.style.display = 'none';
+        return;
+    }
+
+    const dryDelta = parseFloat(payload.dryDelta ?? -1);
+    const wetDelta = parseFloat(payload.wetDelta ?? -1);
+    const dryCount = payload.dryCount || 0;
+    const wetCount = payload.wetCount || 0;
+    const avgDry = parseFloat(payload.avgDryDelta ?? -1);
+    const avgWet = parseFloat(payload.avgWetDelta ?? -1);
+    const crossover = payload.crossoverTime || '--';
+
+    // Determine which compound is faster
+    // dryDelta = time lost vs fastest if on dry (0 when dry IS fastest)
+    // wetDelta = time lost vs fastest if on wet (0 when wet IS fastest)
+    const dryIsFaster = wetDelta > 0 && dryDelta <= wetDelta;
+    const advantageSecs = Math.abs(dryDelta - wetDelta);
+    const totalDrivers = dryCount + wetCount;
+
+    // Badge row
+    if (uiTireBadges) {
+        const fasterClass = dryIsFaster ? 'faster-dry' : 'faster-wet';
+        const fasterLabel = dryIsFaster ? 'DRY faster' : 'WET faster';
+        uiTireBadges.innerHTML =
+            `<span class="tire-compound-badge ${fasterClass}">${fasterLabel}</span>` +
+            `<span class="tire-compound-badge dry">${dryCount} on DRY</span>` +
+            `<span class="tire-compound-badge wet">${wetCount} on WET</span>`;
+    }
+
+    // Advantage bar: fill is centered, extends left for dry advantage, right for wet
+    // We use left% + width%: center = 50%, bar extends toward faster side
+    const maxBarPct = 48;
+    const fillPct = totalDrivers > 0 ? Math.min(maxBarPct, (advantageSecs / Math.max(advantageSecs, 3)) * maxBarPct) : 0;
+    if (uiTireBarFill) {
+        if (dryIsFaster) {
+            // bar extends from center toward left (dry side)
+            uiTireBarFill.style.left = `${50 - fillPct}%`;
+            uiTireBarFill.style.width = `${fillPct}%`;
+            uiTireBarFill.style.backgroundColor = '#4fc3f7'; // blue = dry
+        } else {
+            // bar extends from center toward right (wet side)
+            uiTireBarFill.style.left = '50%';
+            uiTireBarFill.style.width = `${fillPct}%`;
+            uiTireBarFill.style.backgroundColor = '#81d4fa'; // teal = wet
+        }
+    }
+
+    // Delta labels
+    const fmtDelta = v => v < 0 ? 'N/A' : `${v > 0 ? '+' : ''}${v.toFixed(3)}s`;
+    if (uiTireDryDelta) uiTireDryDelta.textContent = dryDelta > 0 ? `+${dryDelta.toFixed(3)}s` : '';
+    if (uiTireWetDelta) uiTireWetDelta.textContent = wetDelta > 0 ? `+${wetDelta.toFixed(3)}s` : '';
+    if (uiTireFasterLabel) {
+        uiTireFasterLabel.textContent = dryIsFaster
+            ? `DRY tires ${advantageSecs.toFixed(3)}s faster per lap`
+            : `WET tires ${advantageSecs.toFixed(3)}s faster per lap`;
+    }
+
+    // Stats
+    if (uiTireCrossover) uiTireCrossover.textContent = crossover;
+    if (uiTireDryCount) uiTireDryCount.textContent = dryCount;
+    if (uiTireWetCount) uiTireWetCount.textContent = wetCount;
+    if (uiTireAvgDry) uiTireAvgDry.textContent = fmtDelta(avgDry);
+    if (uiTireAvgWet) uiTireAvgWet.textContent = fmtDelta(avgWet);
+
+    if (cardTireStrategy) cardTireStrategy.style.display = 'flex';
 }
 
 // Startup

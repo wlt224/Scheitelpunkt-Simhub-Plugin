@@ -232,6 +232,75 @@
                     </div>
                 </section>
             </main>
+
+            <!-- Driver Pace Comparison (averages vs team) -->
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-driver-averages" style="display: none;">
+                    <div class="card-header">
+                        <h3>Driver Pace Comparison</h3>
+                        <div class="card-subtitle">5-lap avg vs team average — lap time &amp; fuel</div>
+                    </div>
+                    <div id="ui-driver-averages-body" class="driver-averages-body">
+                        <!-- Injected via JS -->
+                    </div>
+                </section>
+            </main>
+
+            <!-- Mixed-condition Tire Strategy -->
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-tire-strategy" style="display: none;">
+                    <div class="card-header">
+                        <div>
+                            <h3>Mixed Conditions — Tire Strategy</h3>
+                            <div class="card-subtitle" id="ui-tire-strategy-subtitle">Comparing dry vs wet tire performance in class</div>
+                        </div>
+                        <div class="tire-badge-row" id="ui-tire-badges">
+                            <!-- Injected via JS -->
+                        </div>
+                    </div>
+                    <div class="tire-strategy-body">
+                        <div class="tire-advantage-section">
+                            <div class="tire-advantage-label" id="ui-tire-faster-label">Faster compound</div>
+                            <div class="tire-advantage-bar-shell">
+                                <div class="tire-advantage-bar-left" id="ui-tire-bar-dry">
+                                    <span class="tire-bar-compound">DRY</span>
+                                    <span class="tire-bar-delta" id="ui-tire-dry-delta"></span>
+                                </div>
+                                <div class="tire-advantage-bar-center">0</div>
+                                <div class="tire-advantage-bar-right" id="ui-tire-bar-wet">
+                                    <span class="tire-bar-delta" id="ui-tire-wet-delta"></span>
+                                    <span class="tire-bar-compound">WET</span>
+                                </div>
+                            </div>
+                            <div class="tire-advantage-bar-track">
+                                <div class="tire-advantage-bar-fill" id="ui-tire-bar-fill"></div>
+                            </div>
+                        </div>
+                        <div class="tire-stats-row">
+                            <div class="tire-stat-box">
+                                <div class="tire-stat-label">Crossover Time</div>
+                                <div class="tire-stat-value" id="ui-tire-crossover">--</div>
+                            </div>
+                            <div class="tire-stat-box">
+                                <div class="tire-stat-label">Drivers on DRY</div>
+                                <div class="tire-stat-value" id="ui-tire-dry-count">--</div>
+                            </div>
+                            <div class="tire-stat-box">
+                                <div class="tire-stat-label">Drivers on WET</div>
+                                <div class="tire-stat-value" id="ui-tire-wet-count">--</div>
+                            </div>
+                            <div class="tire-stat-box">
+                                <div class="tire-stat-label">Avg Δ DRY</div>
+                                <div class="tire-stat-value" id="ui-tire-avg-dry">--</div>
+                            </div>
+                            <div class="tire-stat-box">
+                                <div class="tire-stat-label">Avg Δ WET</div>
+                                <div class="tire-stat-value" id="ui-tire-avg-wet">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
         </div> <!-- End of view-strategy -->
 
         <!-- LIVE TIMING VIEW -->
@@ -252,6 +321,7 @@
                                     <th>Driver</th>
                                     <th id="ui-timing-gap-header">Gap</th>
                                     <th id="ui-timing-int-header">Int</th>
+                                    <th>Trend</th>
                                     <th>Last</th>
                                     <th>5L Avg</th>
                                     <th>Best</th>
