@@ -821,30 +821,49 @@ body {
 }
 
 .driver-avg-track {
-    position: relative;
+    display: flex;
+    align-items: stretch;
     height: 0.65rem;
     border-radius: 0.33rem;
-    background: rgba(255,255,255,0.07);
     overflow: hidden;
 }
 
-.driver-avg-fill {
-    position: absolute;
-    top: 0;
+/* Left half: faster (green) bars grow outward from center to the left */
+.driver-avg-half {
+    flex: 1;
     height: 100%;
-    border-radius: 0.33rem;
+    background: rgba(255,255,255,0.07);
+    display: flex;
+}
+
+.driver-avg-half.left-half {
+    justify-content: flex-end;
+    border-radius: 0.33rem 0 0 0.33rem;
+}
+
+.driver-avg-half.right-half {
+    justify-content: flex-start;
+    border-radius: 0 0.33rem 0.33rem 0;
+}
+
+.driver-avg-center-line {
+    width: 1px;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.28);
+}
+
+.driver-avg-fill {
+    height: 100%;
     transition: width 0.4s ease;
 }
 
-/* fill anchored to the right for faster drivers (green = faster) */
+/* Faster = green, grows from center to the left */
 .driver-avg-fill.faster {
-    right: 0;
     background: var(--accent-green);
     opacity: 0.75;
 }
 
 .driver-avg-fill.slower {
-    left: 0;
     background: var(--accent-red);
     opacity: 0.55;
 }

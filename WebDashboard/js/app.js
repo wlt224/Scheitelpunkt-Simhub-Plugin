@@ -1220,22 +1220,25 @@ function renderDriverAverages(leaderboardPayload) {
 
     const avg = parsed.reduce((sum, d) => sum + d.secs, 0) / parsed.length;
     const maxDeviation = Math.max(...parsed.map(d => Math.abs(d.secs - avg)), 0.001);
-    const barMaxPct = 45; // max bar width in %
+    const barMaxPct = 100; // max bar fills its entire half at max deviation
 
-    let html = `<div class="driver-avg-section-header">5-Lap Avg — Team Avg: ${formatSecondsToLap(avg)}</div>`;
+    let html = `<div class="driver-avg-section-header">5-Lap Avg — All Drivers Avg: ${formatSecondsToLap(avg)}</div>`;
     parsed.forEach(d => {
-        const dev = d.secs - avg; // positive = slower
+        const dev = d.secs - avg; // positive = slower, negative = faster
         const pct = Math.min(barMaxPct, (Math.abs(dev) / maxDeviation) * barMaxPct);
         const isFaster = dev < 0;
-        const fillClass = isFaster ? 'faster' : 'slower';
         const devSign = dev > 0 ? '+' : '';
         const devStr = `${devSign}${dev.toFixed(3)}s`;
         const nameClass = d.isPlayer ? 'driver-avg-name is-player' : 'driver-avg-name';
+        const leftFill  = isFaster ? `<div class="driver-avg-fill faster" style="width: ${pct}%"></div>` : '';
+        const rightFill = !isFaster ? `<div class="driver-avg-fill slower" style="width: ${pct}%"></div>` : '';
         html += `
         <div class="driver-avg-row">
             <div class="${nameClass}" title="${d.name}">${d.name}</div>
             <div class="driver-avg-track">
-                <div class="driver-avg-fill ${fillClass}" style="width: ${pct}%"></div>
+                <div class="driver-avg-half left-half">${leftFill}</div>
+                <div class="driver-avg-center-line"></div>
+                <div class="driver-avg-half right-half">${rightFill}</div>
             </div>
             <div class="driver-avg-value">${devStr}</div>
         </div>`;
