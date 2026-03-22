@@ -43,6 +43,7 @@ const uiFuelPerLap = document.getElementById("ui-fuel-per-lap");
 const uiFuelLapsRemain = document.getElementById("ui-fuel-laps-remain");
 const uiFuelChartCanvas = document.getElementById("ui-fuel-chart-canvas");
 const uiFuelChartEmpty = document.getElementById("ui-fuel-chart-empty");
+const uiFuelNoData = document.getElementById("ui-fuel-no-data");
 const uiCurrentLapTime = document.getElementById("ui-current-lap-time");
 const uiBestLapTime = document.getElementById("ui-best-lap-time");
 const uiCompletedLaps = document.getElementById("ui-completed-laps");
@@ -113,8 +114,14 @@ let roomRef = null;
 let previousBestTime = null;
 let stintChart = null;
 let fuelChart = null;
-let fuelHistory = [];
+let fuelHistory = [];          // per-lap consumption data points
+let fuelChartSamples = [];     // parallel to chart data array (null for stint separators)
+let stintCounter = 1;          // incremented on refuel
 let lastFuelSampleKey = "";
+let lastLapBoundaryState = null; // { liters, completedLaps } at last lap crossing
+let stintStartLap = 0;          // absolute lap number at which current stint started
+let lastFuelPayloadTimestampMs = 0; // wall-clock ms of the most recent payload.fuel received
+const FUEL_NO_DATA_TIMEOUT_MS = 60_000; // 1 min before showing "no fuel data" notice
 const LAP_TIME_PLACEHOLDER = "--:--.--";
 
 // Default Firebase Configuration
@@ -146,6 +153,9 @@ function init() {
         // Show overlay if credentials are missing
         overlay.classList.remove("hidden");
     }
+
+    // Poll every 5 s to detect stale / absent fuel data
+    setInterval(checkFuelDataFreshness, 5000);
 }
 
 // Connect Button Event
@@ -328,6 +338,8 @@ function updateDashboard(payload) {
 
     // Fuel Box
     if (payload.fuel) {
+        lastFuelPayloadTimestampMs = Date.now();
+        checkFuelDataFreshness(); // hide the notice immediately when data arrives
         const liters = parseFloat(payload.fuel.currentLiters || 0);
         const max = parseFloat(payload.fuel.maxLiters || 1);
         const pct = payload.fuel.currentPercentage || (liters / max) * 100;
@@ -529,64 +541,81 @@ function renderStrategyGrid() {
     uiStrategyTbody.innerHTML = html;
 }
 
+/**
+ * Shows/hides the "no fuel data" notice based on how long ago fuel was last received.
+ * Only shows after FUEL_NO_DATA_TIMEOUT_MS ms *and* only once we have ever connected
+ * (i.e., the room is live but the driver simply isn't sharing fuel).
+ */
+function checkFuelDataFreshness() {
+    if (!uiFuelNoData) return;
+    const connectedLive = roomRef && uiStatusDot.classList.contains("connected");
+    const noRecentFuel = connectedLive && (Date.now() - lastFuelPayloadTimestampMs > FUEL_NO_DATA_TIMEOUT_MS);
+    uiFuelNoData.style.display = noRecentFuel ? "flex" : "none";
+}
+
 function updateFuelHistory(payload) {
     const fuelPayload = payload?.fuel;
-    if (!fuelPayload) {
-        return;
-    }
+    if (!fuelPayload) return;
 
     const liters = Number(fuelPayload.currentLiters);
-    if (!Number.isFinite(liters)) {
-        return;
-    }
+    if (!Number.isFinite(liters)) return;
 
     const completedLaps = Number(payload?.timing?.completedLaps || 0);
-    const trackPositionPercent = Math.min(1, Math.max(0, Number(payload?.timing?.trackPositionPercent || 0)));
     const timestamp = fuelPayload.timestamp || payload?.timing?.timestamp || new Date().toISOString();
-    const sampleKey = `${timestamp}|${completedLaps}|${trackPositionPercent.toFixed(3)}|${liters.toFixed(3)}`;
+    const sampleKey = `${timestamp}|${completedLaps}|${liters.toFixed(3)}`;
 
-    if (sampleKey === lastFuelSampleKey) {
-        return;
-    }
-
-    if (fuelHistory.length > 0) {
-        const previousSample = fuelHistory[fuelHistory.length - 1];
-        const isReset = completedLaps < previousSample.completedLaps || liters > previousSample.liters + 1.25;
-        if (isReset) {
-            fuelHistory = [];
-        }
-    }
-
-    const timestampMs = Date.parse(timestamp);
-    if (Number.isNaN(timestampMs)) {
-        return;
-    }
-
-    fuelHistory.push({
-        label: `L${(completedLaps + trackPositionPercent).toFixed(1)}`,
-        timeLabel: formatSampleTime(timestamp),
-        timestampMs,
-        liters,
-        completedLaps,
-        lapDisplay: completedLaps + trackPositionPercent
-    });
-
-    const maxWindowMs = 60 * 60 * 1000; // 60 minutes
-    const nowMs = Date.now();
-    fuelHistory = fuelHistory.filter(s => Number.isFinite(s.timestampMs) && s.timestampMs >= nowMs - maxWindowMs);
-
-    // Keep a reasonable upper limit to avoid browser slowness
-    if (fuelHistory.length > 1200) {
-        fuelHistory = fuelHistory.slice(-1200);
-    }
-
+    if (sampleKey === lastFuelSampleKey) return;
     lastFuelSampleKey = sampleKey;
+
+    // Detect refuel (liters jumped up) or lap counter reset — start a new stint
+    const isRefuel = lastLapBoundaryState !== null && liters > lastLapBoundaryState.liters + 1.25;
+    const isLapReset = lastLapBoundaryState !== null && completedLaps < lastLapBoundaryState.completedLaps;
+
+    if (isRefuel || isLapReset) {
+        stintCounter++;
+        stintStartLap = completedLaps;
+        lastLapBoundaryState = { liters, completedLaps };
+        return; // need two boundary samples before we can compute consumption
+    }
+
+    // Bootstrap state on first sample ever
+    if (lastLapBoundaryState === null) {
+        lastLapBoundaryState = { liters, completedLaps };
+        stintStartLap = completedLaps;
+        return;
+    }
+
+    // When a new completed lap is seen, record per-lap consumption
+    const newLap = Math.floor(completedLaps);
+    const prevLap = Math.floor(lastLapBoundaryState.completedLaps);
+
+    if (newLap > prevLap) {
+        const lapsDelta = newLap - prevLap;
+        const consumed = lastLapBoundaryState.liters - liters;
+        if (consumed > 0 && lapsDelta > 0) {
+            const consumedPerLap = consumed / lapsDelta;
+            for (let l = prevLap + 1; l <= newLap; l++) {
+                const lapWithinStint = l - stintStartLap;
+                fuelHistory.push({
+                    stintIndex: stintCounter,
+                    absoluteLap: l,
+                    lapWithinStint,
+                    consumed: consumedPerLap,
+                    label: `S${stintCounter}-L${lapWithinStint}`
+                });
+            }
+        }
+        lastLapBoundaryState = { liters, completedLaps };
+    }
+
+    // Cap history to avoid memory bloat (~500 laps is more than enough)
+    if (fuelHistory.length > 500) {
+        fuelHistory = fuelHistory.slice(-500);
+    }
 }
 
 function renderFuelChart() {
-    if (!uiFuelChartCanvas || !uiFuelChartEmpty) {
-        return;
-    }
+    if (!uiFuelChartCanvas || !uiFuelChartEmpty) return;
 
     if (fuelHistory.length < 1) {
         uiFuelChartEmpty.style.display = "flex";
@@ -600,20 +629,35 @@ function renderFuelChart() {
 
     uiFuelChartEmpty.style.display = "none";
     ensureFuelChart();
-    if (!fuelChart) {
-        return;
-    }
+    if (!fuelChart) return;
 
-    const labels = fuelHistory.map(sample => sample.label);
-    const liters = fuelHistory.map(sample => sample.liters);
-    const minValue = Math.min(...liters);
-    const maxValue = Math.max(...liters);
-    const span = Math.max(0.75, maxValue - minValue);
+    // Build labels+data arrays; insert null between stints for a visual gap in the line
+    const labels = [];
+    const data = [];
+    fuelChartSamples = [];
+    let prevStint = null;
+
+    fuelHistory.forEach(sample => {
+        if (prevStint !== null && sample.stintIndex !== prevStint) {
+            labels.push("");
+            data.push(null);
+            fuelChartSamples.push(null);
+        }
+        labels.push(sample.label);
+        data.push(Math.round(sample.consumed * 1000) / 1000);
+        fuelChartSamples.push(sample);
+        prevStint = sample.stintIndex;
+    });
+
+    const values = fuelHistory.map(s => s.consumed);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const span = Math.max(0.2, maxValue - minValue);
 
     fuelChart.data.labels = labels;
-    fuelChart.data.datasets[0].data = liters;
-    fuelChart.options.scales.y.suggestedMin = Math.max(0, minValue - span * 0.18);
-    fuelChart.options.scales.y.suggestedMax = maxValue + span * 0.18;
+    fuelChart.data.datasets[0].data = data;
+    fuelChart.options.scales.y.suggestedMin = Math.max(0, minValue - span * 0.35);
+    fuelChart.options.scales.y.suggestedMax = maxValue + span * 0.35;
     fuelChart.update();
 }
 
@@ -720,37 +764,33 @@ function ensureStintChart() {
 }
 
 function ensureFuelChart() {
-    if (fuelChart || !uiFuelChartCanvas) {
-        return;
-    }
+    if (fuelChart || !uiFuelChartCanvas) return;
+
+    const dataset = createPrimaryLineDataset({
+        label: "Fuel per Lap",
+        startColor: "rgba(76, 217, 100, 0.32)",
+        endColor: "rgba(52, 199, 89, 0.03)",
+        borderColor: "rgba(95, 229, 120, 0.96)"
+    });
+    // Ensure null separators create visual breaks (Chart.js default, explicit for clarity)
+    dataset.spanGaps = false;
 
     fuelChart = new Chart(uiFuelChartCanvas, {
         type: "line",
         data: {
             labels: [],
-            datasets: [
-                createPrimaryLineDataset({
-                    label: "Fuel",
-                    startColor: "rgba(76, 217, 100, 0.32)",
-                    endColor: "rgba(52, 199, 89, 0.03)",
-                    borderColor: "rgba(95, 229, 120, 0.96)"
-                })
-            ]
+            datasets: [dataset]
         },
         options: buildAppleLineOptions({
-            maxXAxisTicks: 4,
-            yTickFormatter: (value) => `${Number(value).toFixed(1)}L`,
+            maxXAxisTicks: 6,
+            yTickFormatter: (value) => `${Number(value).toFixed(2)}L`,
             tooltipTitle: (items) => {
-                const sample = fuelHistory[items[0]?.dataIndex ?? -1];
-                return sample?.timeLabel || items[0]?.label || "Fuel";
+                const sample = fuelChartSamples[items[0]?.dataIndex ?? -1];
+                return sample ? `Stint ${sample.stintIndex} — Lap ${sample.lapWithinStint}` : (items[0]?.label || "Fuel");
             },
             tooltipLabel: (context) => {
-                const sample = fuelHistory[context.dataIndex];
-                if (!sample) {
-                    return `${context.parsed.y.toFixed(1)} L`;
-                }
-
-                return `${context.parsed.y.toFixed(1)} L at lap ${sample.lapDisplay.toFixed(2)}`;
+                if (context.parsed.y === null) return "";
+                return `${context.parsed.y.toFixed(3)} L/lap`;
             }
         })
     });

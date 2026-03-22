@@ -288,6 +288,12 @@ body {
     align-items: center;
 }
 
+.driver-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 .driver-name {
     font-size: 1.8rem;
     font-weight: 700;
@@ -300,6 +306,18 @@ body {
     border-radius: 6px;
     font-family: monospace;
     font-size: 0.9rem;
+    align-self: flex-start;
+}
+
+.driver-position-badge {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: var(--accent-blue);
+    letter-spacing: -2px;
+    text-shadow: 0 0 20px rgba(10, 132, 255, 0.4);
+    min-width: 110px;
+    text-align: right;
+    line-height: 1;
 }
 
 /* KPI Groups */
@@ -379,6 +397,26 @@ body {
     border-radius: 4px;
     box-shadow: 0 0 10px rgba(10, 132, 255, 0.5);
     transition: width 0.5s cubic-bezier(0.1, 0.7, 0.1, 1);
+}
+
+.fuel-no-data-notice {
+    display: none;
+    align-items: flex-start;
+    gap: 0.6rem;
+    background: rgba(255, 159, 10, 0.1);
+    border: 1px solid rgba(255, 159, 10, 0.28);
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    font-size: 0.82rem;
+    color: #ffba44;
+    line-height: 1.45;
+    margin-bottom: 1rem;
+}
+
+.fuel-no-data-icon {
+    flex-shrink: 0;
+    font-size: 1rem;
+    line-height: 1.45;
 }
 
 .fuel-chart-shell {
@@ -737,6 +775,10 @@ body {
 
 @media (max-width: 767px) {
     .app-container {
+        padding: 0.75rem;
+    }
+
+    .card {
         padding: 1rem;
     }
 
@@ -752,10 +794,24 @@ body {
         justify-content: center;
     }
 
+    /* Keep driver profile as a row on mobile — name/car left, position right */
     .driver-profile {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.8rem;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .driver-position-badge {
+        font-size: 2.4rem;
+        min-width: 70px;
+    }
+
+    .driver-name {
+        font-size: 1.35rem;
+    }
+
+    .main-kpi .kpi-value {
+        font-size: 2.6rem;
     }
 
     .time-remain {
@@ -780,6 +836,24 @@ body {
 
     .fuel-chart-shell {
         height: 136px;
+    }
+
+    /* Pace comparison: tighter columns on small screens */
+    .driver-avg-row {
+        grid-template-columns: 5rem 1fr 4rem;
+        gap: 0.5rem;
+        font-size: 0.78rem;
+    }
+
+    /* Tire strategy stats scroll horizontally on small screens */
+    .tire-stats-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+    }
+
+    .tire-stat-box {
+        flex: 0 0 5.5rem;
     }
 }
 

@@ -71,9 +71,11 @@
                         <h3>Current Driver</h3>
                     </div>
                     <div class="driver-profile">
-                        <div class="driver-name" id="ui-driver-name">Waiting for data...</div>
-                        <div class="driver-car" id="ui-car-id">--</div>
-                        <div class="driver-position" id="ui-driver-position" style="font-size: 1.2rem; font-weight: 600; color: var(--accent-blue); margin-top: 4px;">P--</div>
+                        <div class="driver-info">
+                            <div class="driver-name" id="ui-driver-name">Waiting for data...</div>
+                            <div class="driver-car" id="ui-car-id">--</div>
+                        </div>
+                        <div class="driver-position-badge" id="ui-driver-position">P--</div>
                     </div>
                 </section>
 
@@ -90,6 +92,11 @@
                     </div>
                     <div class="progress-bar-container">
                         <div class="progress-bar" id="ui-fuel-bar" style="width: 0%;"></div>
+                    </div>
+                    <!-- Shown only after 60 s with no fuel payload (driver lacks plugin / sharing off) -->
+                    <div id="ui-fuel-no-data" class="fuel-no-data-notice" style="display: none;">
+                        <span class="fuel-no-data-icon">⚠️</span>
+                        <span>No fuel data — driver may not have the plugin active or cloud sharing is disabled.</span>
                     </div>
                     <div class="fuel-chart-shell">
                         <div class="fuel-chart-empty" id="ui-fuel-chart-empty">
@@ -238,7 +245,6 @@
                 <section class="card glass-panel span-2" id="card-driver-averages" style="display: none;">
                     <div class="card-header">
                         <h3>Driver Pace Comparison</h3>
-                        <div class="card-subtitle">5-lap avg vs team average — lap time &amp; fuel</div>
                     </div>
                     <div id="ui-driver-averages-body" class="driver-averages-body">
                         <!-- Injected via JS -->
