@@ -401,6 +401,9 @@ function updateDashboard(payload) {
         }
     }
 
+    // Hoisted so the stint-time write below can also be gated by it.
+    let fuelIsStale = false;
+
     // Fuel Box
     if (payload.fuel) {
         // Use the timestamp the C# plugin embedded at write time, not Date.now().
@@ -409,7 +412,7 @@ function updateDashboard(payload) {
         const fuelWriteTs = payload.fuel.timestamp ? new Date(payload.fuel.timestamp).getTime() : 0;
         lastFuelPayloadTimestampMs = fuelWriteTs > 0 ? fuelWriteTs : Date.now();
         const connectedLive = roomRef && uiStatusDot.classList.contains("connected");
-        const fuelIsStale = connectedLive && (Date.now() - lastFuelPayloadTimestampMs > FUEL_NO_DATA_TIMEOUT_MS);
+        fuelIsStale = connectedLive && (Date.now() - lastFuelPayloadTimestampMs > FUEL_NO_DATA_TIMEOUT_MS);
         checkFuelDataFreshness(); // show/hide the notice and blank KPIs if stale
 
         // Only write KPI values when data is actually fresh — checkFuelDataFreshness()
@@ -552,8 +555,9 @@ function updateDashboard(payload) {
     const avgCandidate = filteredAvg || stintL5 || stintAvg || lastLapS || 0;
     if (avgCandidate > 0) lastKnownAvgLapSeconds = avgCandidate;
 
-    // Stint time remaining = laps remaining × avg lap time
-    if (uiFuelStintTimeRemain) {
+    // Stint time remaining = laps remaining × avg lap time.
+    // Guard with fuelIsStale to prevent overwriting the "--" that checkFuelDataFreshness() set.
+    if (!fuelIsStale && uiFuelStintTimeRemain) {
         const lapsRem = parseFloat(payload.fuel?.lapsRemaining || 0);
         if (lapsRem > 0 && lastKnownAvgLapSeconds > 0) {
             uiFuelStintTimeRemain.textContent = formatStintDuration(lapsRem * lastKnownAvgLapSeconds);
