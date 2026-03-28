@@ -342,7 +342,11 @@ function updateDashboard(payload) {
 
     // Fuel Box
     if (payload.fuel) {
-        lastFuelPayloadTimestampMs = Date.now();
+        // Use the timestamp the C# plugin embedded at write time, not Date.now().
+        // Firebase delivers the last-written value on every connect, so using Date.now()
+        // would reset the staleness clock even when the payload is hours old.
+        const fuelWriteTs = payload.fuel.timestamp ? new Date(payload.fuel.timestamp).getTime() : 0;
+        lastFuelPayloadTimestampMs = fuelWriteTs > 0 ? fuelWriteTs : Date.now();
         checkFuelDataFreshness(); // hide the notice immediately when data arrives
         const liters = parseFloat(payload.fuel.currentLiters || 0);
         const max = parseFloat(payload.fuel.maxLiters || 1);
