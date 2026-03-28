@@ -78,25 +78,36 @@
                         <div class="driver-position-badge" id="ui-driver-position">P--</div>
                     </div>
                     <div class="driver-race-kpis">
-                        <div class="driver-kpi-box">
-                            <div class="driver-kpi-value" id="ui-driver-gap">--</div>
-                            <div class="driver-kpi-label">Gap to Leader</div>
+                        <!-- Row 1: summary stats -->
+                        <div class="driver-summary-row">
+                            <div class="driver-summary-item">
+                                <span class="driver-summary-label">Gap to Leader</span>
+                                <span class="driver-summary-value" id="ui-driver-gap">--</span>
+                            </div>
+                            <div class="driver-summary-item">
+                                <span class="driver-summary-label">Stint Laps</span>
+                                <span class="driver-summary-value" id="ui-driver-stint-laps">--</span>
+                            </div>
                         </div>
-                        <div class="driver-kpi-box driver-kpi-box--rival">
-                            <div class="rival-label">CAR AHEAD</div>
-                            <div class="rival-name" id="ui-ahead-name">--</div>
-                            <div class="rival-interval" id="ui-ahead-interval">--</div>
-                            <div class="rival-pace" id="ui-ahead-pace"></div>
+                        <!-- Row 2: car ahead -->
+                        <div class="rival-row">
+                            <span class="rival-arrow rival-arrow--ahead">&#9650;</span>
+                            <div class="rival-row-info">
+                                <span class="rival-row-label">CAR AHEAD</span>
+                                <span class="rival-row-name" id="ui-ahead-name">--</span>
+                            </div>
+                            <div class="rival-row-interval" id="ui-ahead-interval">--</div>
+                            <div class="rival-row-pace" id="ui-ahead-pace"></div>
                         </div>
-                        <div class="driver-kpi-box driver-kpi-box--rival">
-                            <div class="rival-label">CAR BEHIND</div>
-                            <div class="rival-name" id="ui-behind-name">--</div>
-                            <div class="rival-interval" id="ui-behind-interval">--</div>
-                            <div class="rival-pace" id="ui-behind-pace"></div>
-                        </div>
-                        <div class="driver-kpi-box">
-                            <div class="driver-kpi-value" id="ui-driver-stint-laps">--</div>
-                            <div class="driver-kpi-label">Stint Laps</div>
+                        <!-- Row 3: car behind -->
+                        <div class="rival-row">
+                            <span class="rival-arrow rival-arrow--behind">&#9660;</span>
+                            <div class="rival-row-info">
+                                <span class="rival-row-label">CAR BEHIND</span>
+                                <span class="rival-row-name" id="ui-behind-name">--</span>
+                            </div>
+                            <div class="rival-row-interval" id="ui-behind-interval">--</div>
+                            <div class="rival-row-pace" id="ui-behind-pace"></div>
                         </div>
                     </div>
                 </section>

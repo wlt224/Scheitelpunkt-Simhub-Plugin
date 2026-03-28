@@ -290,12 +290,142 @@ body {
 
 .driver-race-kpis {
     display: flex;
-    gap: 0;
+    flex-direction: column;
+    gap: 0.5rem;
     margin-top: 1rem;
     border-top: 1px solid rgba(255,255,255,0.07);
     padding-top: 1rem;
 }
 
+/* Row 1: gap to leader + stint laps side by side */
+.driver-summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.driver-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.driver-summary-item:last-child {
+    align-items: flex-end;
+}
+
+.driver-summary-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+}
+
+.driver-summary-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+}
+
+/* Rows 2 & 3: rival rows */
+.rival-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.rival-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.rival-arrow {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    width: 1rem;
+    text-align: center;
+}
+
+.rival-arrow--ahead { color: #30d158; }
+.rival-arrow--behind { color: #ff6961; }
+
+.rival-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.rival-row-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    line-height: 1;
+}
+
+.rival-row-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rival-row-interval {
+    font-size: 1.2rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+}
+
+.rival-row-pace {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-shrink: 0;
+    min-width: 5rem;
+    justify-content: flex-end;
+}
+
+.pace-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: monospace;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.pace-badge-5l-label {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+}
+
+.pace-faster {
+    background: rgba(48, 209, 88, 0.18);
+    color: #30d158;
+    border: 1px solid rgba(48, 209, 88, 0.35);
+}
+
+.pace-slower {
+    background: rgba(255, 59, 48, 0.18);
+    color: #ff6961;
+    border: 1px solid rgba(255, 59, 48, 0.35);
+}
+
+/* keep old classes intact for any other usage */
 .driver-kpi-box {
     flex: 1;
     display: flex;
@@ -304,14 +434,6 @@ body {
     gap: 0.25rem;
     padding: 0 1rem;
     border-right: 1px solid rgba(255,255,255,0.07);
-}
-
-.driver-kpi-box:first-child { padding-left: 0; }
-.driver-kpi-box:last-child { border-right: none; }
-
-.driver-kpi-box--rival {
-    flex: 2;
-    gap: 0.2rem;
 }
 
 .driver-kpi-value {
@@ -327,67 +449,6 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-secondary);
-}
-
-.rival-label {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-secondary);
-    margin-bottom: 0.1rem;
-}
-
-.rival-name {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-}
-
-.rival-interval {
-    font-size: 1.3rem;
-    font-weight: 700;
-    font-family: monospace;
-    color: var(--text-primary);
-    letter-spacing: -0.5px;
-}
-
-.rival-pace {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.15rem;
-    min-height: 1.4rem;
-}
-
-.pace-badge {
-    font-size: 0.72rem;
-    font-weight: 700;
-    font-family: monospace;
-    padding: 0.15rem 0.45rem;
-    border-radius: 4px;
-    letter-spacing: 0;
-}
-
-.pace-faster {
-    background: rgba(48, 209, 88, 0.18);
-    color: #30d158;
-    border: 1px solid rgba(48, 209, 88, 0.35);
-}
-
-.pace-slower {
-    background: rgba(255, 59, 48, 0.18);
-    color: #ff6961;
-    border: 1px solid rgba(255, 59, 48, 0.35);
-}
-
-.pace-desc {
-    font-size: 0.65rem;
-    color: var(--text-secondary);
-    white-space: nowrap;
 }
 
 .driver-info {

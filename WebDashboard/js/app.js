@@ -360,18 +360,16 @@ function updateDashboard(payload) {
             const rivalPace = parseLapTimeSeconds(rival.a5);
             if (myPace && rivalPace) {
                 const delta = rivalPace - myPace; // positive = rival is slower = we are faster
-                // For ahead: positive delta means we're gaining (faster) — good
-                // For behind: positive delta means they're slower — safe gap building
-                const faster = isBehind ? delta > 0 : delta > 0;
+                const faster = delta > 0;
                 const sign = delta >= 0 ? "+" : "-";
                 const absDelta = Math.abs(delta);
-                const label = faster
-                    ? `<span class="pace-badge pace-faster">${sign}${absDelta.toFixed(2)}s</span>`
-                    : `<span class="pace-badge pace-slower">${sign}${absDelta.toFixed(2)}s</span>`;
+                const badgeClass = faster ? "pace-faster" : "pace-slower";
                 const desc = isBehind
                     ? (faster ? "they are slower" : "they are faster")
                     : (faster ? "we are faster" : "we are slower");
-                paceEl.innerHTML = `${label}<span class="pace-desc">${desc}</span>`;
+                paceEl.innerHTML =
+                    `<span class="pace-badge ${badgeClass}">${sign}${absDelta.toFixed(2)}s</span>` +
+                    `<span class="pace-badge-5l-label" title="Based on 5-lap average pace">${desc} · 5L avg</span>`;
             } else {
                 paceEl.innerHTML = "";
             }
