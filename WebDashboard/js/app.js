@@ -51,6 +51,14 @@ const uiBestLapTime = document.getElementById("ui-best-lap-time");
 const uiCompletedLaps = document.getElementById("ui-completed-laps");
 const uiSessionTime = document.getElementById("ui-session-time");
 const uiDriverPosition = document.getElementById("ui-driver-position");
+const uiDriverGap = document.getElementById("ui-driver-gap");
+const uiDriverStintLaps = document.getElementById("ui-driver-stint-laps");
+const uiAheadName = document.getElementById("ui-ahead-name");
+const uiAheadInterval = document.getElementById("ui-ahead-interval");
+const uiAheadPace = document.getElementById("ui-ahead-pace");
+const uiBehindName = document.getElementById("ui-behind-name");
+const uiBehindInterval = document.getElementById("ui-behind-interval");
+const uiBehindPace = document.getElementById("ui-behind-pace");
 const uiSessionElapsed = document.getElementById("ui-session-elapsed");
 const uiSessionTotal = document.getElementById("ui-session-total");
 
@@ -325,6 +333,61 @@ function updateDashboard(payload) {
         uiDriverPosition.textContent = `P${payload.timing.position}`;
     }
 
+    // Driver race KPIs — gap, interval ahead/behind with pace comparison, stint laps
+    if (playerLeaderboardEntry) {
+        const rows = getLeaderboardRows(payload?.leaderboard);
+        const myPos = parseInt(playerLeaderboardEntry.p) || 0;
+        const isLeader = myPos === 1;
+        const myPace = parseLapTimeSeconds(playerLeaderboardEntry.a5);
+
+        // Gap to leader
+        uiDriverGap.textContent = isLeader ? "LEADER" : (playerLeaderboardEntry.g || "--");
+
+        // Find car immediately ahead and behind in class (by position)
+        const ahead = rows.find(r => (parseInt(r.p) || 0) === myPos - 1);
+        const behind = rows.find(r => (parseInt(r.p) || 0) === myPos + 1);
+
+        function renderRival(nameEl, intervalEl, paceEl, rival, intervalValue, isBehind) {
+            if (!rival) {
+                nameEl.textContent = "--";
+                intervalEl.textContent = "--";
+                paceEl.innerHTML = "";
+                return;
+            }
+            nameEl.textContent = rival.n || `#${rival.c}` || "--";
+            intervalEl.textContent = intervalValue || "--";
+
+            const rivalPace = parseLapTimeSeconds(rival.a5);
+            if (myPace && rivalPace) {
+                const delta = rivalPace - myPace; // positive = rival is slower = we are faster
+                // For ahead: positive delta means we're gaining (faster) — good
+                // For behind: positive delta means they're slower — safe gap building
+                const faster = isBehind ? delta > 0 : delta > 0;
+                const sign = delta >= 0 ? "+" : "-";
+                const absDelta = Math.abs(delta);
+                const label = faster
+                    ? `<span class="pace-badge pace-faster">${sign}${absDelta.toFixed(2)}s</span>`
+                    : `<span class="pace-badge pace-slower">${sign}${absDelta.toFixed(2)}s</span>`;
+                const desc = isBehind
+                    ? (faster ? "they are slower" : "they are faster")
+                    : (faster ? "we are faster" : "we are slower");
+                paceEl.innerHTML = `${label}<span class="pace-desc">${desc}</span>`;
+            } else {
+                paceEl.innerHTML = "";
+            }
+        }
+
+        // Car ahead: interval is playerLeaderboardEntry.i (gap to car directly ahead)
+        renderRival(uiAheadName, uiAheadInterval, uiAheadPace, ahead,
+            isLeader ? "--" : (playerLeaderboardEntry.i || "--"), false);
+
+        // Car behind: find their interval field (their i = gap to us)
+        renderRival(uiBehindName, uiBehindInterval, uiBehindPace, behind,
+            behind?.i || "--", true);
+
+        uiDriverStintLaps.textContent = playerLeaderboardEntry.st ?? payload.playerStint?.currentStintLaps ?? "--";
+    }
+
     if (payload.timing && payload.timing.sessionTime !== undefined && payload.timing.sessionTime !== null) {
         uiSessionTime.textContent = formatSessionTime(payload.timing.sessionTime);
 
@@ -347,27 +410,34 @@ function updateDashboard(payload) {
         // would reset the staleness clock even when the payload is hours old.
         const fuelWriteTs = payload.fuel.timestamp ? new Date(payload.fuel.timestamp).getTime() : 0;
         lastFuelPayloadTimestampMs = fuelWriteTs > 0 ? fuelWriteTs : Date.now();
-        checkFuelDataFreshness(); // hide the notice immediately when data arrives
-        const liters = parseFloat(payload.fuel.currentLiters || 0);
-        const max = parseFloat(payload.fuel.maxLiters || 1);
-        const pct = payload.fuel.currentPercentage || (liters / max) * 100;
+        const connectedLive = roomRef && uiStatusDot.classList.contains("connected");
+        const fuelIsStale = connectedLive && (Date.now() - lastFuelPayloadTimestampMs > FUEL_NO_DATA_TIMEOUT_MS);
+        checkFuelDataFreshness(); // show/hide the notice and blank KPIs if stale
 
-        uiFuelLiters.textContent = liters.toFixed(1);
-        uiFuelBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+        // Only write KPI values when data is actually fresh — checkFuelDataFreshness()
+        // just blanked them to "--"; overwriting with stale values causes visible flicker.
+        if (!fuelIsStale) {
+            const liters = parseFloat(payload.fuel.currentLiters || 0);
+            const max = parseFloat(payload.fuel.maxLiters || 1);
+            const pct = payload.fuel.currentPercentage || (liters / max) * 100;
 
-        uiFuelPerLap.textContent = parseFloat(payload.fuel.fuelPerLap || 0).toFixed(2);
-        uiFuelLapsRemain.textContent = parseFloat(payload.fuel.lapsRemaining || 0).toFixed(1);
+            uiFuelLiters.textContent = liters.toFixed(1);
+            uiFuelBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
 
-        // Color warnings based on fuel percentage
-        if (pct < 10) {
-            uiFuelBar.style.background = "linear-gradient(90deg, #ff3b30, #ff6961)";
-            uiFuelBar.style.boxShadow = "0 0 10px rgba(255, 59, 48, 0.5)";
-        } else if (pct < 25) {
-            uiFuelBar.style.background = "linear-gradient(90deg, #ffcc00, #ffdb4d)";
-            uiFuelBar.style.boxShadow = "0 0 10px rgba(255, 204, 0, 0.5)";
-        } else {
-            uiFuelBar.style.background = "linear-gradient(90deg, #0a84ff, #5e5ce6)";
-            uiFuelBar.style.boxShadow = "0 0 10px rgba(10, 132, 255, 0.5)";
+            uiFuelPerLap.textContent = parseFloat(payload.fuel.fuelPerLap || 0).toFixed(2);
+            uiFuelLapsRemain.textContent = parseFloat(payload.fuel.lapsRemaining || 0).toFixed(1);
+
+            // Color warnings based on fuel percentage
+            if (pct < 10) {
+                uiFuelBar.style.background = "linear-gradient(90deg, #ff3b30, #ff6961)";
+                uiFuelBar.style.boxShadow = "0 0 10px rgba(255, 59, 48, 0.5)";
+            } else if (pct < 25) {
+                uiFuelBar.style.background = "linear-gradient(90deg, #ffcc00, #ffdb4d)";
+                uiFuelBar.style.boxShadow = "0 0 10px rgba(255, 204, 0, 0.5)";
+            } else {
+                uiFuelBar.style.background = "linear-gradient(90deg, #0a84ff, #5e5ce6)";
+                uiFuelBar.style.boxShadow = "0 0 10px rgba(10, 132, 255, 0.5)";
+            }
         }
 
         updateFuelHistory(payload);

@@ -288,6 +288,108 @@ body {
     align-items: center;
 }
 
+.driver-race-kpis {
+    display: flex;
+    gap: 0;
+    margin-top: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding-top: 1rem;
+}
+
+.driver-kpi-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0 1rem;
+    border-right: 1px solid rgba(255,255,255,0.07);
+}
+
+.driver-kpi-box:first-child { padding-left: 0; }
+.driver-kpi-box:last-child { border-right: none; }
+
+.driver-kpi-box--rival {
+    flex: 2;
+    gap: 0.2rem;
+}
+
+.driver-kpi-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+}
+
+.driver-kpi-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+}
+
+.rival-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    margin-bottom: 0.1rem;
+}
+
+.rival-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.rival-interval {
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+}
+
+.rival-pace {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.15rem;
+    min-height: 1.4rem;
+}
+
+.pace-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: monospace;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    letter-spacing: 0;
+}
+
+.pace-faster {
+    background: rgba(48, 209, 88, 0.18);
+    color: #30d158;
+    border: 1px solid rgba(48, 209, 88, 0.35);
+}
+
+.pace-slower {
+    background: rgba(255, 59, 48, 0.18);
+    color: #ff6961;
+    border: 1px solid rgba(255, 59, 48, 0.35);
+}
+
+.pace-desc {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
 .driver-info {
     display: flex;
     flex-direction: column;
