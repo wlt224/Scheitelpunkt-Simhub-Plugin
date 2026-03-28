@@ -471,11 +471,16 @@ function updateDashboard(payload) {
         previousBestTime = bestTime;
 
         // Stint Planner timeline rendering
-        if (payload.timing.totalLaps > 0) {
+        // Only show when we have real position data — completedLaps=0 and trackPct=0
+        // means the driver plugin is not installed; hide the card rather than showing "Lap 0".
+        const _completed = parseFloat(payload.timing.completedLaps || 0);
+        const _trackPct  = parseFloat(payload.timing.trackPositionPercent || 0);
+        const _hasPosition = _completed > 0 || _trackPct > 0;
+        if (payload.timing.totalLaps > 0 && _hasPosition) {
             cardStintPlanner.style.display = "flex";
 
-            const completed = parseFloat(payload.timing.completedLaps || 0);
-            const trackPct = parseFloat(payload.timing.trackPositionPercent || 0);
+            const completed = _completed;
+            const trackPct = _trackPct;
             const totalLaps = parseFloat(payload.timing.totalLaps);
 
             const exactCurrentLap = Math.min(totalLaps, completed + Math.min(1, Math.max(0, trackPct)));
