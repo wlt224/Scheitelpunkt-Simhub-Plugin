@@ -291,7 +291,7 @@ body {
 .driver-race-kpis {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.75rem;
     margin-top: 1rem;
     border-top: 1px solid rgba(255,255,255,0.07);
     padding-top: 1rem;
@@ -323,7 +323,7 @@ body {
 }
 
 .driver-summary-value {
-    font-size: 1.25rem;
+    font-size: 1.9rem;
     font-weight: 700;
     font-family: monospace;
     color: var(--text-primary);
@@ -333,9 +333,9 @@ body {
 /* Rows 2 & 3: rival rows */
 .rival-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.75rem;
-    padding: 0.45rem 0;
+    padding: 0.75rem 0;
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
@@ -349,16 +349,25 @@ body {
     flex-shrink: 0;
     width: 1rem;
     text-align: center;
+    margin-top: 0.2rem;
 }
 
 .rival-arrow--ahead { color: #30d158; }
 .rival-arrow--behind { color: #ff6961; }
 
-.rival-row-info {
+/* Vertical body wrapping all rival content */
+.rival-row-body {
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.45rem;
     flex: 1;
+    min-width: 0;
+}
+
+.rival-row-info {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
     min-width: 0;
 }
 
@@ -368,10 +377,11 @@ body {
     letter-spacing: 0.1em;
     color: var(--text-secondary);
     line-height: 1;
+    flex-shrink: 0;
 }
 
 .rival-row-name {
-    font-size: 0.95rem;
+    font-size: 1.05rem;
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
@@ -379,38 +389,57 @@ body {
     text-overflow: ellipsis;
 }
 
-.rival-row-interval {
-    font-size: 1.2rem;
+/* Two numeric stats side by side (Interval · Gap to Leader) */
+.rival-row-numbers {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.rival-row-number-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.rival-number-label {
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    line-height: 1;
+}
+
+.rival-row-interval,
+.rival-row-gap {
+    font-size: 1.3rem;
     font-weight: 700;
     font-family: monospace;
     color: var(--text-primary);
     letter-spacing: -0.5px;
-    flex-shrink: 0;
 }
 
+/* Pace section: badge on first line, label below it */
 .rival-row-pace {
     display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    flex-shrink: 0;
-    min-width: 5rem;
-    justify-content: flex-end;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
 }
 
 .pace-badge {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 700;
     font-family: monospace;
-    padding: 0.15rem 0.45rem;
+    padding: 0.2rem 0.55rem;
     border-radius: 4px;
     letter-spacing: 0;
     white-space: nowrap;
 }
 
 .pace-badge-5l-label {
-    font-size: 0.6rem;
+    font-size: 0.62rem;
     color: var(--text-secondary);
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
 }
 
 .pace-faster {

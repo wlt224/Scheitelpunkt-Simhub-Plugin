@@ -55,9 +55,11 @@ const uiDriverGap = document.getElementById("ui-driver-gap");
 const uiDriverStintLaps = document.getElementById("ui-driver-stint-laps");
 const uiAheadName = document.getElementById("ui-ahead-name");
 const uiAheadInterval = document.getElementById("ui-ahead-interval");
+const uiAheadGap = document.getElementById("ui-ahead-gap");
 const uiAheadPace = document.getElementById("ui-ahead-pace");
 const uiBehindName = document.getElementById("ui-behind-name");
 const uiBehindInterval = document.getElementById("ui-behind-interval");
+const uiBehindGap = document.getElementById("ui-behind-gap");
 const uiBehindPace = document.getElementById("ui-behind-pace");
 const uiSessionElapsed = document.getElementById("ui-session-elapsed");
 const uiSessionTotal = document.getElementById("ui-session-total");
@@ -347,15 +349,17 @@ function updateDashboard(payload) {
         const ahead = rows.find(r => (parseInt(r.p) || 0) === myPos - 1);
         const behind = rows.find(r => (parseInt(r.p) || 0) === myPos + 1);
 
-        function renderRival(nameEl, intervalEl, paceEl, rival, intervalValue, isBehind) {
+        function renderRival(nameEl, intervalEl, gapEl, paceEl, rival, intervalValue, isBehind) {
             if (!rival) {
                 nameEl.textContent = "--";
                 intervalEl.textContent = "--";
+                if (gapEl) gapEl.textContent = "--";
                 paceEl.innerHTML = "";
                 return;
             }
             nameEl.textContent = rival.n || `#${rival.c}` || "--";
             intervalEl.textContent = intervalValue || "--";
+            if (gapEl) gapEl.textContent = rival.g || "--";
 
             const rivalPace = parseLapTimeSeconds(rival.a5);
             if (myPace && rivalPace) {
@@ -376,11 +380,11 @@ function updateDashboard(payload) {
         }
 
         // Car ahead: interval is playerLeaderboardEntry.i (gap to car directly ahead)
-        renderRival(uiAheadName, uiAheadInterval, uiAheadPace, ahead,
+        renderRival(uiAheadName, uiAheadInterval, uiAheadGap, uiAheadPace, ahead,
             isLeader ? "--" : (playerLeaderboardEntry.i || "--"), false);
 
         // Car behind: find their interval field (their i = gap to us)
-        renderRival(uiBehindName, uiBehindInterval, uiBehindPace, behind,
+        renderRival(uiBehindName, uiBehindInterval, uiBehindGap, uiBehindPace, behind,
             behind?.i || "--", true);
 
         uiDriverStintLaps.textContent = playerLeaderboardEntry.st ?? payload.playerStint?.currentStintLaps ?? "--";
