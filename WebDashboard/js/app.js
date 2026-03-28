@@ -41,6 +41,8 @@ const uiFuelLiters = document.getElementById("ui-fuel-liters");
 const uiFuelBar = document.getElementById("ui-fuel-bar");
 const uiFuelPerLap = document.getElementById("ui-fuel-per-lap");
 const uiFuelLapsRemain = document.getElementById("ui-fuel-laps-remain");
+const uiFuelPitLap = document.getElementById("ui-fuel-pit-lap");
+const uiFuelStintTimeRemain = document.getElementById("ui-fuel-stint-time-remain");
 const uiFuelChartCanvas = document.getElementById("ui-fuel-chart-canvas");
 const uiFuelChartEmpty = document.getElementById("ui-fuel-chart-empty");
 const uiFuelNoData = document.getElementById("ui-fuel-no-data");
@@ -59,6 +61,7 @@ const uiTimelineCar = document.getElementById("ui-timeline-car");
 const uiPitMarkers = document.getElementById("ui-pit-markers");
 const uiStintCurrent = document.getElementById("ui-stint-current-lap");
 const uiStintTotal = document.getElementById("ui-stint-total-laps");
+const uiSplashBadge = document.getElementById("ui-splash-badge");
 const cardStintChart = document.getElementById("card-stint-chart");
 const uiStintChartDriver = document.getElementById("ui-stint-chart-driver");
 const uiStintChartCanvas = document.getElementById("ui-stint-chart-canvas");
@@ -121,6 +124,7 @@ let lastFuelSampleKey = "";
 let lastLapBoundaryState = null; // { liters, completedLaps } at last lap crossing
 let stintStartLap = 0;          // absolute lap number at which current stint started
 let lastFuelPayloadTimestampMs = 0; // wall-clock ms of the most recent payload.fuel received
+let lastKnownAvgLapSeconds = 0;   // best available avg lap time for stint-time calculation
 const FUEL_NO_DATA_TIMEOUT_MS = 60_000; // 1 min before showing "no fuel data" notice
 const LAP_TIME_PLACEHOLDER = "--:--.--";
 
@@ -427,6 +431,25 @@ function updateDashboard(payload) {
                     markerCount++;
                 }
 
+                // Compute Splash & Dash laps: laps remaining in race at the last pit stop
+                if (uiSplashBadge) {
+                    if (pitStops.length > 0) {
+                        const lastPitLap = (pitStops[pitStops.length - 1] / 100) * totalLaps;
+                        const splashLaps = Math.max(0, Math.ceil(totalLaps - lastPitLap));
+                        const splashFuel = tankSizeLaps > 0
+                            ? Math.min(
+                                parseFloat(payload.fuel.maxLiters || 0),
+                                Math.max(0, splashLaps * parseFloat(payload.fuel.fuelPerLap || 0))
+                              )
+                            : 0;
+                        const fuelStr = splashFuel > 0 ? ` · ${splashFuel.toFixed(1)} L` : "";
+                        uiSplashBadge.textContent = `S&D: ${splashLaps} lap${splashLaps !== 1 ? "s" : ""}${fuelStr}`;
+                        uiSplashBadge.style.display = "inline-flex";
+                    } else {
+                        uiSplashBadge.style.display = "none";
+                    }
+                }
+
                 // Render markers — the last one is highlighted as the Splash & Dash stop
                 pitStops.forEach((pct, idx) => {
                     const isSplash = idx === pitStops.length - 1;
@@ -440,6 +463,32 @@ function updateDashboard(payload) {
     }
 
     renderPlayerStintChart(payload.playerStint, payload.timing?.driverName || uiDriverName.textContent);
+
+    // Update best-available avg lap seconds for stint-time calculation.
+    // Prefer a locally-computed outlier-filtered mean from the raw lapTimes array
+    // so that out-laps / safety-car laps / in-laps don't inflate the estimate.
+    const rawLapTimes = Array.isArray(payload.playerStint?.lapTimes)
+        ? payload.playerStint.lapTimes
+            .map(p => Number(p?.seconds))
+            .filter(s => Number.isFinite(s) && s > 0)
+        : [];
+    const filteredAvg = filteredLapAverage(rawLapTimes, 5, 0.07); // last 5, max +7 % vs window best
+    const stintL5     = toPositiveNumber(payload.playerStint?.last5LapAverageSeconds);
+    const stintAvg    = toPositiveNumber(payload.playerStint?.averageLapSeconds);
+    const lastLapS    = parseLapTimeSeconds(payload.timing?.lastLapTime);
+    // Priority: filtered local > plugin-side 5L avg > stint avg > last lap
+    const avgCandidate = filteredAvg || stintL5 || stintAvg || lastLapS || 0;
+    if (avgCandidate > 0) lastKnownAvgLapSeconds = avgCandidate;
+
+    // Stint time remaining = laps remaining × avg lap time
+    if (uiFuelStintTimeRemain) {
+        const lapsRem = parseFloat(payload.fuel?.lapsRemaining || 0);
+        if (lapsRem > 0 && lastKnownAvgLapSeconds > 0) {
+            uiFuelStintTimeRemain.textContent = formatStintDuration(lapsRem * lastKnownAvgLapSeconds);
+        } else if (payload.fuel) {
+            uiFuelStintTimeRemain.textContent = "--";
+        }
+    }
 
     // Leaderboard
     updateTimingHeaders(isDeltaMode);
@@ -551,6 +600,18 @@ function checkFuelDataFreshness() {
     const connectedLive = roomRef && uiStatusDot.classList.contains("connected");
     const noRecentFuel = connectedLive && (Date.now() - lastFuelPayloadTimestampMs > FUEL_NO_DATA_TIMEOUT_MS);
     uiFuelNoData.style.display = noRecentFuel ? "flex" : "none";
+
+    // Blank out stale fuel KPIs so observers don't mistake old values for live data
+    if (noRecentFuel) {
+        uiFuelLiters.textContent = "--";
+        uiFuelBar.style.width = "0%";
+        uiFuelBar.style.background = "linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))";
+        uiFuelBar.style.boxShadow = "none";
+        uiFuelPerLap.textContent = "--";
+        uiFuelLapsRemain.textContent = "--";
+        if (uiFuelPitLap) uiFuelPitLap.textContent = "--";
+        if (uiFuelStintTimeRemain) uiFuelStintTimeRemain.textContent = "--";
+    }
 }
 
 function updateFuelHistory(payload) {
@@ -601,6 +662,7 @@ function updateFuelHistory(payload) {
                     absoluteLap: l,
                     lapWithinStint,
                     consumed: consumedPerLap,
+                    liters: lastLapBoundaryState.liters - consumedPerLap * (l - prevLap),
                     label: `S${stintCounter}-L${lapWithinStint}`
                 });
             }
@@ -614,16 +676,37 @@ function updateFuelHistory(payload) {
     }
 }
 
+/**
+ * Linear regression over [{x, y}] points.
+ * Returns { slope, intercept } or null if degenerate.
+ */
+function linearRegression(points) {
+    const n = points.length;
+    if (n < 2) return null;
+    const sumX  = points.reduce((s, p) => s + p.x, 0);
+    const sumY  = points.reduce((s, p) => s + p.y, 0);
+    const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
+    const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0);
+    const denom = n * sumX2 - sumX * sumX;
+    if (Math.abs(denom) < 1e-10) return null;
+    const slope = (n * sumXY - sumX * sumY) / denom;
+    const intercept = (sumY - slope * sumX) / n;
+    return { slope, intercept };
+}
+
 function renderFuelChart() {
     if (!uiFuelChartCanvas || !uiFuelChartEmpty) return;
 
-    if (fuelHistory.length < 1) {
+    // Only show current stint, and only samples that carry a fuel level
+    const currentStint = fuelHistory.filter(s => s.stintIndex === stintCounter && s.liters != null);
+
+    if (currentStint.length < 1) {
         uiFuelChartEmpty.style.display = "flex";
         if (fuelChart) {
-            fuelChart.data.labels = [];
-            fuelChart.data.datasets[0].data = [];
+            fuelChart.data.datasets.forEach(ds => { ds.data = []; });
             fuelChart.update("none");
         }
+        if (uiFuelPitLap) uiFuelPitLap.textContent = "--";
         return;
     }
 
@@ -631,34 +714,66 @@ function renderFuelChart() {
     ensureFuelChart();
     if (!fuelChart) return;
 
-    // Build labels+data arrays; insert null between stints for a visual gap in the line
-    const labels = [];
-    const data = [];
-    fuelChartSamples = [];
-    let prevStint = null;
+    // Dataset 0: actual fuel level per completed lap  {x: lap, y: liters}
+    const actualData = currentStint.map(s => ({ x: s.absoluteLap, y: s.liters }));
 
-    fuelHistory.forEach(sample => {
-        if (prevStint !== null && sample.stintIndex !== prevStint) {
-            labels.push("");
-            data.push(null);
-            fuelChartSamples.push(null);
-        }
-        labels.push(sample.label);
-        data.push(Math.round(sample.consumed * 1000) / 1000);
-        fuelChartSamples.push(sample);
-        prevStint = sample.stintIndex;
-    });
+    // Linear regression from the last 5 samples (or fewer)
+    const regSamples = currentStint.slice(-5);
+    const reg = linearRegression(regSamples.map(s => ({ x: s.absoluteLap, y: s.liters })));
 
-    const values = fuelHistory.map(s => s.consumed);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const span = Math.max(0.2, maxValue - minValue);
+    let forecastData = [];
+    let pitMarkerData = [];
+    let pitLap = null;
 
-    fuelChart.data.labels = labels;
-    fuelChart.data.datasets[0].data = data;
-    fuelChart.options.scales.y.suggestedMin = Math.max(0, minValue - span * 0.35);
-    fuelChart.options.scales.y.suggestedMax = maxValue + span * 0.35;
+    if (reg && reg.slope < 0) {
+        // x-intercept: when fuel hits 0
+        pitLap = -reg.intercept / reg.slope;
+
+        // Forecast line anchors at start of the regression window
+        const forecastStartLap = regSamples[0].absoluteLap;
+        const forecastStartY = reg.slope * forecastStartLap + reg.intercept;
+        forecastData = [
+            { x: forecastStartLap, y: Math.max(0, forecastStartY) },
+            { x: pitLap,           y: 0 }
+        ];
+        pitMarkerData = [{ x: pitLap, y: 0 }];
+    }
+
+    if (uiFuelPitLap) {
+        uiFuelPitLap.textContent = pitLap !== null ? `L${Math.ceil(pitLap)}` : "--";
+    }
+
+    // Axis bounds
+    const lapMin  = currentStint[0].absoluteLap;
+    const lapMax  = pitLap !== null
+        ? Math.ceil(pitLap) + 1
+        : currentStint[currentStint.length - 1].absoluteLap + 3;
+    const litersTop = currentStint.reduce((max, s) => Math.max(max, s.liters), 0);
+
+    fuelChart.data.datasets[0].data = actualData;
+    fuelChart.data.datasets[1].data = forecastData;
+    fuelChart.data.datasets[2].data = pitMarkerData;
+
+    fuelChart.options.scales.x.min = Math.max(0, lapMin - 0.5);
+    fuelChart.options.scales.x.max = lapMax;
+    fuelChart.options.scales.y.max = Math.ceil(litersTop * 1.12);
+
+    // Footer in tooltip: laps remaining until predicted stop
+    const pitLapForFooter = pitLap;
+    fuelChart.options.plugins.tooltip.callbacks.footer = pitLapForFooter !== null
+        ? (items) => {
+            const x = items[0]?.parsed?.x;
+            if (x == null) return "";
+            const lapsLeft = Math.max(0, pitLapForFooter - x).toFixed(1);
+            return `\u25CF  Pit in ~${lapsLeft} laps  (L${Math.ceil(pitLapForFooter)})`;
+          }
+        : undefined;
+
     fuelChart.update();
+
+    // Show the inline legend once real data is present
+    const legendEl = document.getElementById("ui-fuel-chart-legend");
+    if (legendEl) legendEl.style.display = "flex";
 }
 
 function renderPlayerStintChart(stintPayload, fallbackDriverName = "") {
@@ -681,7 +796,12 @@ function renderPlayerStintChart(stintPayload, fallbackDriverName = "") {
         : [];
 
     const averageLapSeconds = toPositiveNumber(stintPayload?.averageLapSeconds) || calculateAverageSeconds(lapTimes);
-    const last5LapAverageSeconds = toPositiveNumber(stintPayload?.last5LapAverageSeconds);
+    // Use outlier-filtered mean for 5L Avg so out-laps / SC laps don't skew the display.
+    // Falls back to the plugin-side pre-computed value when fewer than 2 clean laps exist.
+    const rawSeconds = lapTimes.map(p => p.seconds);
+    const last5LapAverageSeconds =
+        filteredLapAverage(rawSeconds, 5, 0.07) ||
+        toPositiveNumber(stintPayload?.last5LapAverageSeconds);
     const bestLapSeconds = lapTimes.length > 0 ? Math.min(...lapTimes.map(point => point.seconds)) : 0;
     const currentStintLaps = Number.isFinite(Number(stintPayload?.currentStintLaps))
         ? Number(stintPayload.currentStintLaps)
@@ -766,33 +886,126 @@ function ensureStintChart() {
 function ensureFuelChart() {
     if (fuelChart || !uiFuelChartCanvas) return;
 
-    const dataset = createPrimaryLineDataset({
-        label: "Fuel per Lap",
-        startColor: "rgba(76, 217, 100, 0.32)",
-        endColor: "rgba(52, 199, 89, 0.03)",
-        borderColor: "rgba(95, 229, 120, 0.96)"
-    });
-    // Ensure null separators create visual breaks (Chart.js default, explicit for clarity)
-    dataset.spanGaps = false;
-
     fuelChart = new Chart(uiFuelChartCanvas, {
         type: "line",
         data: {
-            labels: [],
-            datasets: [dataset]
+            datasets: [
+                // 0 — Actual fuel level for the current stint
+                {
+                    label: "Fuel Level",
+                    data: [],
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2.6,
+                    borderColor: "rgba(48, 209, 88, 0.96)",
+                    backgroundColor: (context) => createChartGradient(
+                        context.chart,
+                        "rgba(48, 209, 88, 0.30)",
+                        "rgba(48, 209, 88, 0.02)"
+                    ),
+                    pointRadius: 3.5,
+                    pointHoverRadius: 6,
+                    pointHitRadius: 16,
+                    pointBorderColor: "rgba(48, 209, 88, 0.96)",
+                    pointBackgroundColor: "rgba(13, 17, 23, 0.9)",
+                    pointHoverBorderWidth: 2,
+                    pointHoverBorderColor: "rgba(255, 255, 255, 0.92)",
+                    pointHoverBackgroundColor: "rgba(48, 209, 88, 1)"
+                },
+                // 1 — Linear regression forecast (dashed orange, no fill)
+                {
+                    label: "Forecast",
+                    data: [],
+                    fill: false,
+                    tension: 0,
+                    borderWidth: 2,
+                    borderColor: "rgba(255, 159, 64, 0.85)",
+                    borderDash: [8, 5],
+                    backgroundColor: "transparent",
+                    pointRadius: 0,
+                    pointHoverRadius: 0
+                },
+                // 2 — Predicted pit stop marker (red dot at y=0)
+                {
+                    label: "Pit Stop",
+                    data: [],
+                    fill: false,
+                    tension: 0,
+                    borderWidth: 2,
+                    backgroundColor: "rgba(255, 69, 58, 0.18)",
+                    borderColor: "rgba(255, 69, 58, 0.95)",
+                    pointStyle: "circle",
+                    pointRadius: 7,
+                    pointHoverRadius: 9,
+                    pointBorderWidth: 2,
+                    pointBorderColor: "rgba(255, 69, 58, 1)",
+                    pointBackgroundColor: "rgba(255, 69, 58, 0.18)"
+                }
+            ]
         },
-        options: buildAppleLineOptions({
-            maxXAxisTicks: 6,
-            yTickFormatter: (value) => `${Number(value).toFixed(2)}L`,
-            tooltipTitle: (items) => {
-                const sample = fuelChartSamples[items[0]?.dataIndex ?? -1];
-                return sample ? `Stint ${sample.stintIndex} — Lap ${sample.lapWithinStint}` : (items[0]?.label || "Fuel");
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 300, easing: "easeOutQuart" },
+            interaction: { mode: "nearest", intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: "rgba(10, 14, 20, 0.94)",
+                    borderColor: "rgba(255, 255, 255, 0.12)",
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    titleColor: "#ffffff",
+                    bodyColor: "#d7dee7",
+                    footerColor: "rgba(255, 159, 64, 0.9)",
+                    footerFont: { family: "Inter, sans-serif", size: 11, style: "normal" },
+                    footerMarginTop: 8,
+                    titleFont: { family: "Inter, sans-serif", weight: "600", size: 12 },
+                    bodyFont:  { family: "Inter, sans-serif", size: 12 },
+                    filter: (item) => item.datasetIndex !== 2 && item.parsed.y !== null,
+                    callbacks: {
+                        title: (items) => {
+                            const x = items[0]?.parsed?.x;
+                            return x != null ? `Lap ${Math.round(x)}` : "";
+                        },
+                        label: (context) => {
+                            const y = context.parsed.y;
+                            if (y === null || y === undefined) return "";
+                            if (context.datasetIndex === 0) return `Fuel: ${y.toFixed(1)} L`;
+                            if (context.datasetIndex === 1) return `Forecast: ${Math.max(0, y).toFixed(1)} L`;
+                            return "";
+                        }
+                    }
+                }
             },
-            tooltipLabel: (context) => {
-                if (context.parsed.y === null) return "";
-                return `${context.parsed.y.toFixed(3)} L/lap`;
+            scales: {
+                x: {
+                    type: "linear",
+                    border: { display: false },
+                    grid: { color: "rgba(255, 255, 255, 0.06)", drawBorder: false },
+                    ticks: {
+                        color: "rgba(156, 163, 175, 0.7)",
+                        maxTicksLimit: 8,
+                        padding: 8,
+                        font: { family: "Inter, sans-serif", size: 11 },
+                        callback: (value) => `L${Math.round(value)}`
+                    }
+                },
+                y: {
+                    min: 0,
+                    border: { display: false },
+                    grid: { color: "rgba(255, 255, 255, 0.06)", drawBorder: false },
+                    ticks: {
+                        color: "rgba(156, 163, 175, 0.7)",
+                        maxTicksLimit: 5,
+                        padding: 10,
+                        font: { family: "Inter, sans-serif", size: 11 },
+                        callback: (value) => `${Number(value).toFixed(0)}L`
+                    }
+                }
             }
-        })
+        }
     });
 }
 
@@ -1051,6 +1264,22 @@ function formatLapDisplay(value) {
     return seconds === null ? LAP_TIME_PLACEHOLDER : formatLapTime(seconds);
 }
 
+/**
+ * Formats a sector time sent as total seconds (e.g. "73.15") into
+ * a human-readable string: "42.15" if under 60 s, or "1:13.15" if over.
+ */
+function formatSectorTime(value) {
+    if (!value && value !== 0) return '';
+    const total = parseFloat(value);
+    if (!Number.isFinite(total) || total <= 0) return '';
+    if (total < 60) {
+        return total.toFixed(2);
+    }
+    const mins = Math.floor(total / 60);
+    const secs = (total % 60).toFixed(2).padStart(5, '0');
+    return `${mins}:${secs}`;
+}
+
 function formatDeltaToBestDisplay(value) {
     if (value === undefined || value === null || value === "") {
         return "-";
@@ -1102,6 +1331,40 @@ function calculateAverageSeconds(lapTimes) {
 
     const total = lapTimes.reduce((sum, point) => sum + point.seconds, 0);
     return total / lapTimes.length;
+}
+
+/**
+ * Computes an outlier-filtered mean from the last `windowSize` lap times.
+ * Any lap slower than (windowMin * (1 + maxOutlierRatio)) is discarded.
+ * Returns 0 if fewer than 2 clean laps remain.
+ *
+ * @param {number[]} allLapSeconds  - array of lap times in seconds, chronological
+ * @param {number}   windowSize     - how many of the most-recent laps to consider (default 5)
+ * @param {number}   maxOutlierRatio - fraction above window-best to tolerate (e.g. 0.07 = 7 %)
+ */
+function filteredLapAverage(allLapSeconds, windowSize = 5, maxOutlierRatio = 0.07) {
+    if (!Array.isArray(allLapSeconds) || allLapSeconds.length < 2) return 0;
+    const window = allLapSeconds.slice(-windowSize);
+    const windowBest = Math.min(...window);
+    const threshold  = windowBest * (1 + maxOutlierRatio);
+    const clean = window.filter(s => s <= threshold);
+    if (clean.length < 1) return 0;
+    return clean.reduce((sum, s) => sum + s, 0) / clean.length;
+}
+
+/**
+ * Formats a duration in seconds to a compact H:MM:SS or MM:SS string.
+ */
+function formatStintDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return "--";
+    const totalS = Math.round(seconds);
+    const h = Math.floor(totalS / 3600);
+    const m = Math.floor((totalS % 3600) / 60);
+    const s = totalS % 60;
+    if (h > 0) {
+        return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function toPositiveNumber(value) {
@@ -1225,9 +1488,9 @@ function renderLeaderboard(leaderboardArr, options = {}) {
             <td style="font-family: monospace;">${formatLapDisplay(s.l)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.a5)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.b)}</td>
-            <td style="font-family: monospace; font-size: 0.85rem;">${s.s1 || ''}</td>
-            <td style="font-family: monospace; font-size: 0.85rem;">${s.s2 || ''}</td>
-            <td style="font-family: monospace; font-size: 0.85rem;">${s.s3 || ''}</td>
+            <td style="font-family: monospace; font-size: 0.85rem;">${formatSectorTime(s.s1)}</td>
+            <td style="font-family: monospace; font-size: 0.85rem;">${formatSectorTime(s.s2)}</td>
+            <td style="font-family: monospace; font-size: 0.85rem;">${formatSectorTime(s.s3)}</td>
             <td>${pitText}</td>
         </tr>`;
     });

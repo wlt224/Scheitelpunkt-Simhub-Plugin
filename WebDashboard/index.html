@@ -81,8 +81,13 @@
 
                 <!-- Fuel Status Card -->
                 <section class="card glass-panel highlight-card">
-                    <div class="card-header">
+                    <div class="card-header" style="display: flex; align-items: flex-start; justify-content: space-between;">
                         <h3>Fuel Status</h3>
+                        <div class="fuel-chart-legend" id="ui-fuel-chart-legend">
+                            <span class="legend-item"><span class="legend-line green"></span>Fuel Level</span>
+                            <span class="legend-item"><span class="legend-line orange-dash"></span>Forecast</span>
+                            <span class="legend-item"><span class="legend-pit-icon">&#9679;</span>&thinsp;Pit Stop</span>
+                        </div>
                     </div>
                     <div class="kpi-group row">
                         <div class="kpi-box main-kpi">
@@ -104,7 +109,7 @@
                         </div>
                         <canvas class="fuel-chart-canvas" id="ui-fuel-chart-canvas"></canvas>
                     </div>
-                    <div class="kpi-group grid-2">
+                    <div class="kpi-group grid-2x2">
                         <div class="kpi-box">
                             <div class="kpi-value" id="ui-fuel-per-lap">0.00</div>
                             <div class="kpi-label">Per Lap (L)</div>
@@ -112,6 +117,14 @@
                         <div class="kpi-box">
                             <div class="kpi-value" id="ui-fuel-laps-remain">0.0</div>
                             <div class="kpi-label">Laps Remain</div>
+                        </div>
+                        <div class="kpi-box">
+                            <div class="kpi-value" id="ui-fuel-pit-lap">--</div>
+                            <div class="kpi-label">Pit Lap</div>
+                        </div>
+                        <div class="kpi-box">
+                            <div class="kpi-value stint-time-value" id="ui-fuel-stint-time-remain">--</div>
+                            <div class="kpi-label">Stint Time Left</div>
                         </div>
                     </div>
                 </section>
@@ -170,6 +183,7 @@
                     </div>
                     <div class="timeline-labels">
                         <span>Lap <span id="ui-stint-current-lap">0</span></span>
+                        <span id="ui-splash-badge" class="splash-badge" style="display:none;"></span>
                         <span>Total Laps <span id="ui-stint-total-laps">--</span></span>
                     </div>
                 </section>

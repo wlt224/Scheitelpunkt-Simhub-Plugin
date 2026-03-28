@@ -338,6 +338,73 @@ body {
     gap: 1rem;
 }
 
+.kpi-group.grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+}
+
+.kpi-group.grid-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem 1rem;
+}
+
+.stint-time-value {
+    font-family: monospace;
+    font-feature-settings: "tnum" 1;
+    color: #ff9f0a;
+    text-shadow: 0 0 8px rgba(255, 159, 10, 0.35);
+}
+
+/* Fuel chart inline legend */
+.fuel-chart-legend {
+    display: none;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 0.15rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.38rem;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.legend-line {
+    display: inline-block;
+    width: 18px;
+    height: 2.5px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.legend-line.green {
+    background: rgba(48, 209, 88, 0.95);
+}
+
+.legend-line.orange-dash {
+    background: repeating-linear-gradient(
+        90deg,
+        rgba(255, 159, 64, 0.85) 0px,
+        rgba(255, 159, 64, 0.85) 5px,
+        transparent 5px,
+        transparent 9px
+    );
+    height: 2px;
+}
+
+.legend-pit-icon {
+    color: rgba(255, 69, 58, 0.9);
+    font-size: 0.55rem;
+    line-height: 1;
+}
+
 .kpi-box {
     display: flex;
     flex-direction: column;
@@ -421,7 +488,7 @@ body {
 
 .fuel-chart-shell {
     position: relative;
-    height: 152px;
+    height: 220px;
     margin: 0 0 1.25rem 0;
     border-radius: 16px;
     overflow: hidden;
@@ -652,6 +719,21 @@ body {
 .pit-marker-splash::after {
     content: "S&D";
     color: #ff9f0a;
+    white-space: nowrap;
+}
+
+.splash-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(255, 159, 10, 0.13);
+    border: 1px solid rgba(255, 159, 10, 0.38);
+    border-radius: 20px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #ff9f0a;
+    letter-spacing: 0.02em;
     white-space: nowrap;
 }
 
