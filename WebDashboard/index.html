@@ -59,6 +59,7 @@
         <!-- TAB NAVIGATION -->
         <div class="tab-navigation">
             <button id="tab-btn-strategy" class="tab-btn active">Race Overview</button>
+            <button id="tab-btn-plan" class="tab-btn">Strategy</button>
             <button id="tab-btn-timing" class="tab-btn">Live Timing</button>
         </div>
 
@@ -223,91 +224,6 @@
             </main>
 
             <main class="dashboard-grid" style="margin-top: 1.5rem;">
-                <!-- Stint Planner Timeline Card -->
-                <section class="card glass-panel span-2" id="card-stint-planner" style="display: none;">
-                    <div class="card-header">
-                        <h3>Race Progress</h3>
-                    </div>
-                    <div class="timeline-container">
-                        <div class="timeline-track">
-                            <div class="timeline-progress" id="ui-timeline-progress"></div>
-                            <div class="timeline-car" id="ui-timeline-car">🏎️</div>
-                            <!-- Pit stop markers will be injected here -->
-                            <div id="ui-pit-markers"></div>
-                        </div>
-                    </div>
-                    <div class="timeline-labels">
-                        <span>Lap <span id="ui-stint-current-lap">0</span></span>
-                        <span id="ui-splash-badge" class="splash-badge" style="display:none;"></span>
-                        <span>Total Laps <span id="ui-stint-total-laps">--</span></span>
-                    </div>
-                </section>
-            </main>
-
-            <main class="dashboard-grid" style="margin-top: 1.5rem;">
-                <section class="card glass-panel span-2" id="card-stint-chart" style="display: none;">
-                    <div class="card-header stint-chart-header">
-                        <div>
-                            <h3>Current Stint Pace</h3>
-                            <div class="card-subtitle" id="ui-stint-chart-driver">Player car</div>
-                        </div>
-                        <div class="stint-chart-stats">
-                            <div class="stint-chart-stat">
-                                <span class="stint-chart-stat-label">Avg</span>
-                                <span class="stint-chart-stat-value" id="ui-stint-average">--:--.--</span>
-                            </div>
-                            <div class="stint-chart-stat">
-                                <span class="stint-chart-stat-label">Best</span>
-                                <span class="stint-chart-stat-value" id="ui-stint-best">--:--.--</span>
-                            </div>
-                            <div class="stint-chart-stat">
-                                <span class="stint-chart-stat-label">5L Avg</span>
-                                <span class="stint-chart-stat-value" id="ui-stint-last-5">--:--.--</span>
-                            </div>
-                            <div class="stint-chart-stat">
-                                <span class="stint-chart-stat-label">Laps</span>
-                                <span class="stint-chart-stat-value" id="ui-stint-lap-count">0</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="stint-chart-shell">
-                        <div class="stint-chart-empty" id="ui-stint-chart-empty">
-                            Complete laps in the current stint to populate the pace chart.
-                        </div>
-                        <canvas class="stint-chart-canvas" id="ui-stint-chart-canvas"></canvas>
-                    </div>
-                </section>
-            </main>
-
-            <!-- Endurance Strategy Grid from Google Sheets -->
-            <main class="dashboard-grid" style="margin-top: 1.5rem;">
-                <section class="card glass-panel span-2" id="card-strategy-grid" style="display: none;">
-                    <div class="card-header"
-                        style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Endurance Strategy Plan</h3>
-                        <span id="ui-strategy-status" style="font-size: 0.8rem; color: var(--accent-green);">Live
-                            Linked</span>
-                    </div>
-                    <div class="strategy-table-container">
-                        <table class="strategy-table" id="ui-strategy-table">
-                            <thead>
-                                <tr>
-                                    <th>Stint</th>
-                                    <th>Driver</th>
-                                    <th>Target Laps</th>
-                                    <th>Pace</th>
-                                    <th>Tires</th>
-                                    <th>Fuel Add</th>
-                                    <th>Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ui-strategy-tbody">
-                                <!-- Injected via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </main>
 
             <!-- Driver Pace Comparison (averages vs team) -->
             <main class="dashboard-grid" style="margin-top: 1.5rem;">
@@ -378,14 +294,107 @@
             </main>
         </div> <!-- End of view-strategy -->
 
+        <!-- STRATEGY / PLAN VIEW -->
+        <div id="view-plan" style="display: none; margin-top: 1rem;">
+            <main class="dashboard-grid">
+                <!-- Stint Planner Timeline Card -->
+                <section class="card glass-panel span-2" id="card-stint-planner" style="display: none;">
+                    <div class="card-header">
+                        <h3>Race Progress</h3>
+                    </div>
+                    <div class="timeline-container">
+                        <div class="timeline-track">
+                            <div class="timeline-progress" id="ui-timeline-progress"></div>
+                            <div class="timeline-car" id="ui-timeline-car">🏎️</div>
+                            <div id="ui-pit-markers"></div>
+                        </div>
+                    </div>
+                    <div class="timeline-labels">
+                        <span>Lap <span id="ui-stint-current-lap">0</span></span>
+                        <span id="ui-splash-badge" class="splash-badge" style="display:none;"></span>
+                        <span>Total Laps <span id="ui-stint-total-laps">--</span></span>
+                    </div>
+                </section>
+            </main>
+
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-stint-chart" style="display: none;">
+                    <div class="card-header stint-chart-header">
+                        <div>
+                            <h3>Current Stint Pace</h3>
+                            <div class="card-subtitle" id="ui-stint-chart-driver">Player car</div>
+                        </div>
+                        <div class="stint-chart-stats">
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Avg</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-average">--:--.--</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Best</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-best">--:--.--</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">5L Avg</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-last-5">--:--.--</span>
+                            </div>
+                            <div class="stint-chart-stat">
+                                <span class="stint-chart-stat-label">Laps</span>
+                                <span class="stint-chart-stat-value" id="ui-stint-lap-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stint-chart-shell">
+                        <div class="stint-chart-empty" id="ui-stint-chart-empty">
+                            Complete laps in the current stint to populate the pace chart.
+                        </div>
+                        <canvas class="stint-chart-canvas" id="ui-stint-chart-canvas"></canvas>
+                    </div>
+                </section>
+            </main>
+
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-strategy-grid" style="display: none;">
+                    <div class="card-header"
+                        style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Endurance Strategy Plan</h3>
+                        <span id="ui-strategy-status" style="font-size: 0.8rem; color: var(--accent-green);">Live
+                            Linked</span>
+                    </div>
+                    <div class="strategy-table-container">
+                        <table class="strategy-table" id="ui-strategy-table">
+                            <thead>
+                                <tr>
+                                    <th>Stint</th>
+                                    <th>Driver</th>
+                                    <th>Target Laps</th>
+                                    <th>Pace</th>
+                                    <th>Tires</th>
+                                    <th>Fuel Add</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ui-strategy-tbody">
+                                <!-- Injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div> <!-- End of view-plan -->
+
         <!-- LIVE TIMING VIEW -->
         <div id="view-timing" style="display: none; margin-top: 1rem;">
             <main class="dashboard-grid">
                 <section class="card glass-panel span-2">
-                    <div class="card-header"
-                        style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="card-header timing-card-header">
                         <h3>Live Timing Leaderboard</h3>
-                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Updates every 30s</span>
+                        <div class="timing-header-right">
+                            <label class="class-filter-toggle" id="ui-class-filter-wrap" style="display: none;">
+                                <input type="checkbox" id="ui-class-only-toggle" checked>
+                                <span>Your class only</span>
+                            </label>
+                            <span class="timing-update-label">Updates every 30s</span>
+                        </div>
                     </div>
                     <div class="strategy-table-container">
                         <table class="strategy-table timing-table" id="ui-timing-table">

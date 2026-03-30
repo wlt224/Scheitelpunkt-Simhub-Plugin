@@ -90,12 +90,16 @@ let currentTelemetryLap = 0;
 
 // Tab & Timing Elements
 const tabBtnStrategy = document.getElementById("tab-btn-strategy");
+const tabBtnPlan = document.getElementById("tab-btn-plan");
 const tabBtnTiming = document.getElementById("tab-btn-timing");
 const viewStrategy = document.getElementById("view-strategy");
+const viewPlan = document.getElementById("view-plan");
 const viewTiming = document.getElementById("view-timing");
 const uiTimingTbody = document.getElementById("ui-timing-tbody");
 const uiTimingGapHeader = document.getElementById("ui-timing-gap-header");
 const uiTimingIntHeader = document.getElementById("ui-timing-int-header");
+const uiClassFilterWrap = document.getElementById("ui-class-filter-wrap");
+const uiClassOnlyToggle = document.getElementById("ui-class-only-toggle");
 
 // New feature DOM refs
 const cardDriverAverages = document.getElementById("card-driver-averages");
@@ -201,19 +205,27 @@ btnConnect.addEventListener("click", () => {
 });
 
 // Tab Switching Logic
-tabBtnStrategy.addEventListener("click", () => {
-    tabBtnStrategy.classList.add("active");
-    tabBtnTiming.classList.remove("active");
-    viewStrategy.style.display = "block";
-    viewTiming.style.display = "none";
-});
+function switchTab(active) {
+    tabBtnStrategy.classList.toggle("active", active === "strategy");
+    tabBtnPlan.classList.toggle("active", active === "plan");
+    tabBtnTiming.classList.toggle("active", active === "timing");
+    viewStrategy.style.display = active === "strategy" ? "block" : "none";
+    viewPlan.style.display     = active === "plan"     ? "block" : "none";
+    viewTiming.style.display   = active === "timing"   ? "block" : "none";
+}
 
-tabBtnTiming.addEventListener("click", () => {
-    tabBtnTiming.classList.add("active");
-    tabBtnStrategy.classList.remove("active");
-    viewTiming.style.display = "block";
-    viewStrategy.style.display = "none";
-});
+tabBtnStrategy.addEventListener("click", () => switchTab("strategy"));
+tabBtnPlan.addEventListener("click",     () => switchTab("plan"));
+tabBtnTiming.addEventListener("click",   () => switchTab("timing"));
+
+// Re-render timing table when toggle changes
+if (uiClassOnlyToggle) {
+    uiClassOnlyToggle.addEventListener("change", () => {
+        if (lastLeaderboardRows) {
+            renderLeaderboard(lastLeaderboardRows, { isDeltaMode: lastIsDeltaMode });
+        }
+    });
+}
 
 function connectToFirebase(dbUrl, apiKey, room) {
     uiStatusText.textContent = "Connecting...";
@@ -579,6 +591,8 @@ function updateDashboard(payload) {
     updateTimingHeaders(isDeltaMode);
     const leaderboardRows = payload.leaderboard ? (payload.leaderboard.leaderboard || payload.leaderboard) : null;
     if (leaderboardRows) {
+        lastLeaderboardRows = leaderboardRows;
+        lastIsDeltaMode = isDeltaMode;
         updateGapHistory(leaderboardRows);
         renderLeaderboard(leaderboardRows, { isDeltaMode });
         renderDriverAverages(leaderboardRows);
@@ -1532,22 +1546,48 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         return;
     }
 
+    // --- Multiclass detection ------------------------------------------
+    const uniqueClasses = new Set(arrayData.filter(s => s.cl).map(s => s.cl));
+    const isMulticlass = uniqueClasses.size > 1;
+    if (uiClassFilterWrap) uiClassFilterWrap.style.display = isMulticlass ? "flex" : "none";
+
+    // Determine whether to filter to player class
+    const classOnlyChecked = uiClassOnlyToggle ? uiClassOnlyToggle.checked : true;
+    let rows = arrayData;
+    if (isMulticlass && classOnlyChecked) {
+        const playerRow = arrayData.find(s => s.me === true || s.me === 1);
+        const playerClass = playerRow?.cl;
+        if (playerClass) rows = arrayData.filter(s => s.cl === playerClass);
+    }
+    // -------------------------------------------------------------------
+
     let html = "";
-    arrayData.forEach(s => {
+    let prevClassColor = null;
+
+    rows.forEach(s => {
+        // Class group separator row (only in all-classes multiclass view)
+        if (isMulticlass && !classOnlyChecked && s.cl !== prevClassColor) {
+            const label = s.cn || "";
+            html += `<tr class="class-group-separator">
+                <td colspan="13">
+                    <span class="class-group-dot" style="background:${s.cl || 'transparent'};"></span>
+                    <span class="class-group-name">${label}</span>
+                </td></tr>`;
+            prevClassColor = s.cl;
+        }
+
         // Pit badge
         const rowClasses = [];
-        if (s.pit === 1) {
-            rowClasses.push("row-in-pit");
-        }
-        if (s.me === true || s.me === 1) {
-            rowClasses.push("row-own-team");
-        }
+        if (s.pit === 1) rowClasses.push("row-in-pit");
+        if (s.me === true || s.me === 1) rowClasses.push("row-own-team");
 
         let pitText = s.pit === 1 ? `<span class="pill-badge pill-gray">PIT</span>` : (s.st || "0");
         const gapDisplay = isDeltaMode ? formatDeltaToBestDisplay(s.d) : (s.g || "-");
         const intervalDisplay = isDeltaMode ? "" : (s.i || "-");
 
-        let classColorBar = s.cl ? `<div style="width: 4px; height: 100%; position: absolute; left: 0; top: 0; background-color: ${s.cl}"></div>` : '';
+        // In multiclass all-classes mode use a wider class bar for row identity
+        const barW = (isMulticlass && !classOnlyChecked) ? 6 : 4;
+        let classColorBar = s.cl ? `<div style="width: ${barW}px; height: 100%; position: absolute; left: 0; top: 0; background-color: ${s.cl}; border-radius: 2px;"></div>` : '';
 
         // Gap trend arrow
         const driverKey = s.n || s.c || String(s.p);
@@ -1564,7 +1604,7 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         }
 
         html += `<tr class="${rowClasses.join(" ")}" style="position: relative;">
-            <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:8px;">${s.p || '-'}</span></td>
+            <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:10px;">${s.p || '-'}</span></td>
             <td style="font-family: monospace; color: var(--text-secondary);">${s.c || '-'}</td>
             <td style="font-weight: 600;">${s.n || 'Unknown'}</td>
             <td style="font-family: monospace;">${gapDisplay}</td>

@@ -1005,6 +1005,67 @@ body {
     color: #cfe7ff;
 }
 
+/* Live Timing header with class filter toggle */
+.timing-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.timing-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.class-filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.class-filter-toggle input[type="checkbox"] {
+    accent-color: var(--accent-blue);
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+}
+
+.timing-update-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Multiclass group separator rows */
+.timing-table tbody tr.class-group-separator td {
+    padding: 0.3rem 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    line-height: 1;
+}
+
+.class-group-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.class-group-name {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    vertical-align: middle;
+}
+
 .stint-completed {
     opacity: 0.4;
 }
