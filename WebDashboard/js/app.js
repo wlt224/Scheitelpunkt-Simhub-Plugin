@@ -358,8 +358,12 @@ function updateDashboard(payload) {
         uiCarId.textContent = payload.fuel.carId;
     }
 
-    if (payload.timing && payload.timing.position !== undefined) {
-        uiDriverPosition.textContent = `P${payload.timing.position}`;
+    {
+        // Prefer class position from leaderboard (PositionInClass); fall back to overall position
+        const posToShow = playerLeaderboardEntry?.p ?? payload.timing?.position;
+        if (posToShow !== undefined && posToShow !== null) {
+            uiDriverPosition.textContent = `P${posToShow}`;
+        }
     }
 
     // Driver race KPIs — gap, interval ahead/behind with pace comparison, stint laps
