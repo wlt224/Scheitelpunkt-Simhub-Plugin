@@ -56,6 +56,37 @@
             </div>
         </div>
 
+        <!-- BROADCAST BAR (persistent across all tabs) -->
+        <div id="broadcast-bar" class="broadcast-bar" style="display:none;">
+            <div class="bb-left">
+                <div class="bb-badge">
+                    <span class="bb-label">Cls Pos</span>
+                    <span class="bb-value" id="bb-position">P--</span>
+                </div>
+                <div class="bb-separator"></div>
+                <div class="bb-badge">
+                    <span class="bb-label">Remaining</span>
+                    <span class="bb-value" id="bb-session-time">--:--</span>
+                </div>
+            </div>
+            <div class="bb-center">
+                <span class="bb-flag-badge" id="bb-flag-badge"></span>
+                <span class="bb-repair-badge" id="bb-repair-badge">
+                    <span>🔧 Repair</span>
+                    <span class="bb-repair-countdown" id="bb-repair-countdown">0:00</span>
+                </span>
+            </div>
+            <div class="bb-right">
+                <div class="bb-badge bb-weather">
+                    <span class="bb-weather-icon">🛣️</span>
+                    <span class="bb-value" id="bb-track-temp">--°</span>
+                    <span class="bb-weather-sep"> · </span>
+                    <span class="bb-weather-icon">💨</span>
+                    <span class="bb-value" id="bb-air-temp">--°</span>
+                </div>
+            </div>
+        </div>
+
         <!-- TAB NAVIGATION -->
         <div class="tab-navigation">
             <button id="tab-btn-strategy" class="tab-btn active">Race Overview</button>
@@ -318,6 +349,24 @@
             </main>
 
             <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel" id="card-stops-remaining" style="display: none;">
+                    <div class="card-header">
+                        <h3>Stops Remaining</h3>
+                    </div>
+                    <div id="ui-stops-remaining-body" class="stops-remaining-body"></div>
+                </section>
+                <section class="card glass-panel" id="card-pit-window" style="display: none;">
+                    <div class="card-header">
+                        <div>
+                            <h3>Pit Window Map</h3>
+                            <div class="card-subtitle">Next predicted stop — class cars</div>
+                        </div>
+                    </div>
+                    <div id="ui-pit-window-body" class="pit-window-body"></div>
+                </section>
+            </main>
+
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
                 <section class="card glass-panel span-2" id="card-stint-chart" style="display: none;">
                     <div class="card-header stint-chart-header">
                         <div>
@@ -420,6 +469,27 @@
                             </tbody>
                         </table>
                     </div>
+                </section>
+            </main>
+
+            <!-- Stint Pace Heatmap -->
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-stint-heatmap" style="display: none;">
+                    <div class="card-header">
+                        <h3>Stint Pace Heatmap</h3>
+                        <span class="card-subtitle">Historical stint performance</span>
+                    </div>
+                    <div id="ui-stint-heatmap-body" class="stint-heatmap-body"></div>
+                </section>
+            </main>
+
+            <!-- Driver Rotation Log -->
+            <main class="dashboard-grid" style="margin-top: 1.5rem;">
+                <section class="card glass-panel span-2" id="card-rotation-log" style="display: none;">
+                    <div class="card-header">
+                        <h3>Driver Rotation Log</h3>
+                    </div>
+                    <div id="ui-rotation-log-body" class="rotation-log-body"></div>
                 </section>
             </main>
         </div>

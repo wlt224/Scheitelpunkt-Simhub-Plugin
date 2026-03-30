@@ -141,6 +141,21 @@ let lastFuelPayloadTimestampMs = 0; // wall-clock ms of the most recent payload.
 let lastKnownAvgLapSeconds = 0;   // best available avg lap time for stint-time calculation
 const FUEL_NO_DATA_TIMEOUT_MS = 60_000; // 1 min before showing "no fuel data" notice
 const LAP_TIME_PLACEHOLDER = "--:--.--";
+let lastLeaderboardRows = null;   // cached for toggle re-render
+let lastIsDeltaMode = false;
+// Stint history for pace heatmap
+const stintHistory = [];
+let prevStintStartLap = -1;
+let prevStintData = null;
+// Driver rotation log
+const driverRotationLog = [];
+let lastKnownStintDriver = "";
+let lastStintLapCountForLog = 0;
+let lastStintAvgSecsForLog = 0;
+let lastStintBestSecsForLog = 0;
+// Repair countdown timer
+let _repairEndTime = 0;
+let _repairTimerInterval = null;
 
 // Default Firebase Configuration
 const DEFAULT_DB_URL = "https://scheitelpunkt-telemetry-default-rtdb.europe-west1.firebasedatabase.app/";
@@ -599,6 +614,22 @@ function updateDashboard(payload) {
     }
 
     renderTireStrategy(payload.tireStrategy);
+
+    // Persistent broadcast bar
+    updateBroadcastBar(payload);
+
+    // Strategy tab: pit window + stops remaining
+    const lbRowsArr = leaderboardRows ? getLeaderboardRows(leaderboardRows) : null;
+    renderPitWindowMap(lbRowsArr, payload.fuel, payload.timing);
+    renderStopsRemaining(payload.fuel, payload.timing);
+
+    // Live timing: stint heatmap + driver rotation log
+    if (payload.playerStint) {
+        updateStintHistory(payload.playerStint);
+        updateDriverRotationLog(payload.playerStint);
+    }
+    renderStintHeatmap();
+    renderDriverRotationLog();
 }
 
 // Strategy Grid Logic
@@ -1561,6 +1592,16 @@ function renderLeaderboard(leaderboardArr, options = {}) {
     }
     // -------------------------------------------------------------------
 
+    // Detect battles: cars within 1.5 s of the car directly ahead
+    const battleSet = new Set();
+    rows.forEach(s => {
+        const iNum = parseFloat(String(s.i || "").replace("+", ""));
+        if (Number.isFinite(iNum) && iNum > 0 && iNum <= 1.5) {
+            battleSet.add(String(s.p));
+            battleSet.add(String((parseInt(s.p) || 0) - 1));
+        }
+    });
+
     let html = "";
     let prevClassColor = null;
 
@@ -1580,28 +1621,24 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         const rowClasses = [];
         if (s.pit === 1) rowClasses.push("row-in-pit");
         if (s.me === true || s.me === 1) rowClasses.push("row-own-team");
+        if (battleSet.has(String(s.p))) rowClasses.push("row-battle");
 
         let pitText = s.pit === 1 ? `<span class="pill-badge pill-gray">PIT</span>` : (s.st || "0");
         const gapDisplay = isDeltaMode ? formatDeltaToBestDisplay(s.d) : (s.g || "-");
-        const intervalDisplay = isDeltaMode ? "" : (s.i || "-");
+        const iNum = parseFloat(String(s.i || "").replace("+", ""));
+        const isBattle = Number.isFinite(iNum) && iNum > 0 && iNum <= 1.5;
+        const intervalDisplay = isDeltaMode ? "" : (isBattle
+            ? `${s.i}&thinsp;<span class="battle-pill">⚔</span>`
+            : (s.i || "-"));
 
         // In multiclass all-classes mode use a wider class bar for row identity
         const barW = (isMulticlass && !classOnlyChecked) ? 6 : 4;
         let classColorBar = s.cl ? `<div style="width: ${barW}px; height: 100%; position: absolute; left: 0; top: 0; background-color: ${s.cl}; border-radius: 2px;"></div>` : '';
 
-        // Gap trend arrow
+        // Gap sparkline (replaces static trend arrow when enough history is available)
         const driverKey = s.n || s.c || String(s.p);
-        const trend = getGapTrend(driverKey);
-        let trendHtml;
-        if (s.p === 1 || s.p === "1") {
-            trendHtml = `<span class="trend-neutral">P1</span>`;
-        } else if (trend.dir === 'up') {
-            trendHtml = `<span class="trend-up" title="Gap closing ${Math.abs(trend.delta).toFixed(1)}s">&#8593;</span>`;
-        } else if (trend.dir === 'down') {
-            trendHtml = `<span class="trend-down" title="Gap growing ${Math.abs(trend.delta).toFixed(1)}s">&#8595;</span>`;
-        } else {
-            trendHtml = `<span class="trend-neutral">&mdash;</span>`;
-        }
+        const isLeader = s.p === 1 || s.p === "1";
+        const trendHtml = buildGapSparkline(driverKey, isLeader);
 
         html += `<tr class="${rowClasses.join(" ")}" style="position: relative;">
             <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:10px;">${s.p || '-'}</span></td>
@@ -1774,6 +1811,299 @@ function renderTireStrategy(payload) {
     if (uiTireAvgWet) uiTireAvgWet.textContent = fmtDelta(avgWet);
 
     if (cardTireStrategy) cardTireStrategy.style.display = 'flex';
+}
+
+// ================================================================
+// BROADCAST BAR
+// ================================================================
+const IRFLAG_CHECKERED   = 0x0001;
+const IRFLAG_WHITE       = 0x0002;
+const IRFLAG_RED         = 0x0010;
+const IRFLAG_CAUTION     = 0x4000;
+const IRFLAG_CAUTION_WAV = 0x8000;
+const IRFLAG_BLACK       = 0x010000;
+const IRFLAG_SERVICEABLE = 0x040000; // meatball
+const IRFLAG_REPAIR      = 0x100000; // mandatory repair
+
+function updateBroadcastBar(payload) {
+    const bar = document.getElementById("broadcast-bar");
+    if (!bar) return;
+    const playerEntry = getPlayerLeaderboardEntry(payload);
+    const timing = payload?.timing;
+    bar.style.display = (timing || playerEntry) ? "flex" : "none";
+
+    const bbPos = document.getElementById("bb-position");
+    if (bbPos && playerEntry?.p != null) {
+        bbPos.textContent = `P${playerEntry.p}`;
+        bbPos.className = "bb-value" + (String(playerEntry.p) === "1" ? " bb-pos-leader" : "");
+    }
+    const bbTime = document.getElementById("bb-session-time");
+    if (bbTime && timing?.sessionTime != null) bbTime.textContent = formatBroadcastTime(timing.sessionTime);
+
+    const bbTrack = document.getElementById("bb-track-temp");
+    const bbAir   = document.getElementById("bb-air-temp");
+    if (bbTrack) bbTrack.textContent = (timing?.trackTempC > 0) ? `${Math.round(timing.trackTempC)}°` : "--°";
+    if (bbAir)   bbAir.textContent   = (timing?.airTempC   > 0) ? `${Math.round(timing.airTempC)}°`   : "--°";
+
+    const flagBadge    = document.getElementById("bb-flag-badge");
+    const repairBadge  = document.getElementById("bb-repair-badge");
+    const repairCountEl = document.getElementById("bb-repair-countdown");
+    const flagBits = parseInt(timing?.sessionFlagsBits || 0);
+
+    if (flagBadge) {
+        flagBadge.style.display = "none";
+        flagBadge.className = "bb-flag-badge";
+        flagBadge.textContent = "";
+    }
+    if (flagBits && flagBadge) {
+        let flagText = null, flagClass = null;
+        if      (flagBits & IRFLAG_RED)         { flagText = "🔴 RED FLAG";          flagClass = "bb-flag-red"; }
+        else if (flagBits & IRFLAG_CAUTION_WAV) { flagText = "🟡 FCY";               flagClass = "bb-flag-yellow"; }
+        else if (flagBits & IRFLAG_CAUTION)     { flagText = "🟡 FULL COURSE YELLOW"; flagClass = "bb-flag-yellow"; }
+        else if (flagBits & IRFLAG_WHITE)        { flagText = "⬜ LAST LAP";          flagClass = "bb-flag-white"; }
+        else if (flagBits & IRFLAG_CHECKERED)    { flagText = "🏁 FINISH";            flagClass = "bb-flag-checkered"; }
+        else if (flagBits & IRFLAG_SERVICEABLE)  { flagText = "⚙ MEATBALL";          flagClass = "bb-flag-meatball"; }
+        else if (flagBits & IRFLAG_BLACK)        { flagText = "◼ BLACK FLAG";         flagClass = "bb-flag-black"; }
+        if (flagText) {
+            flagBadge.textContent = flagText;
+            flagBadge.classList.add(flagClass);
+            flagBadge.style.display = "inline-flex";
+        }
+    }
+    const pitRepairLeft    = parseFloat(timing?.pitRepairLeft    || 0);
+    const pitOptRepairLeft = parseFloat(timing?.pitOptRepairLeft || 0);
+    if (repairBadge) {
+        if (pitRepairLeft > 0) {
+            repairBadge.style.display = "inline-flex";
+            repairBadge.classList.remove("bb-repair-optional");
+            startRepairCountdown(pitRepairLeft, repairCountEl);
+        } else if (pitOptRepairLeft > 0) {
+            repairBadge.style.display = "inline-flex";
+            repairBadge.classList.add("bb-repair-optional");
+            startRepairCountdown(pitOptRepairLeft, repairCountEl);
+        } else {
+            repairBadge.style.display = "none";
+            clearRepairCountdown();
+        }
+    }
+}
+
+function startRepairCountdown(secondsLeft, el) {
+    const newEnd = Date.now() + secondsLeft * 1000;
+    if (Math.abs(newEnd - _repairEndTime) < 1500 && _repairTimerInterval) return;
+    clearRepairCountdown();
+    _repairEndTime = newEnd;
+    if (!el) return;
+    el.textContent = formatRepairTime(secondsLeft);
+    _repairTimerInterval = setInterval(() => {
+        const rem = Math.max(0, (_repairEndTime - Date.now()) / 1000);
+        el.textContent = formatRepairTime(rem);
+        if (rem <= 0) clearRepairCountdown();
+    }, 250);
+}
+
+function clearRepairCountdown() {
+    if (_repairTimerInterval) clearInterval(_repairTimerInterval);
+    _repairTimerInterval = null;
+    _repairEndTime = 0;
+}
+
+function formatBroadcastTime(rawValue) {
+    const s = parseDurationSeconds(rawValue);
+    if (s === null) return "--:--";
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+    return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+}
+
+function formatRepairTime(seconds) {
+    const s = Math.ceil(Math.max(0, seconds));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// ================================================================
+// GAP SPARKLINE
+// ================================================================
+function buildGapSparkline(driverKey, isLeader) {
+    if (isLeader) return `<span class="trend-neutral">P1</span>`;
+    const hist = gapHistory.get(driverKey);
+    if (!hist || hist.length < 3) {
+        const trend = getGapTrend(driverKey);
+        if (trend.dir === "up")   return `<span class="trend-up" title="Gap closing">&#8593;</span>`;
+        if (trend.dir === "down") return `<span class="trend-down" title="Gap growing">&#8595;</span>`;
+        return `<span class="trend-neutral">&mdash;</span>`;
+    }
+    const pts = hist.slice(-8);
+    const values = pts.map(p => p.gap);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const range = Math.max(0.5, maxV - minV);
+    const W = 52, H = 16;
+    const pointStr = values.map((v, i) => {
+        const x = ((values.length > 1 ? i / (values.length - 1) : 0) * (W - 4) + 2).toFixed(1);
+        const y = (H - 2 - ((v - minV) / range) * (H - 4)).toFixed(1);
+        return `${x},${y}`;
+    }).join(" ");
+    const delta = values[values.length - 1] - values[0];
+    const color = Math.abs(delta) < 0.5 ? "#9ca3af" : delta < 0 ? "#34c759" : "#ff3b30";
+    return `<span class="gap-sparkline-wrap" title="Gap ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}s over ${pts.length} snapshots"><svg width="${W}" height="${H}" style="overflow:visible;vertical-align:middle;display:block;margin:auto;"><polyline points="${pointStr}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span>`;
+}
+
+// ================================================================
+// PIT WINDOW MAP
+// ================================================================
+function renderPitWindowMap(rows, fuel, timing) {
+    const card = document.getElementById("card-pit-window");
+    const body = document.getElementById("ui-pit-window-body");
+    if (!card || !body) return;
+    const fpl       = parseFloat(fuel?.fuelPerLap  || 0);
+    const maxLiters = parseFloat(fuel?.maxLiters   || 0);
+    if (!rows || rows.length === 0 || fpl <= 0 || maxLiters <= 0) { card.style.display = "none"; return; }
+
+    const stintLen  = maxLiters / fpl;
+    const horizon   = Math.max(20, Math.ceil(stintLen * 1.15));
+    const playerRow = rows.find(r => r.me === true || r.me === 1);
+    const playerCls = playerRow?.cl;
+    const classRows = playerCls ? rows.filter(r => r.cl === playerCls) : rows.slice(0, 12);
+    if (classRows.length === 0) { card.style.display = "none"; return; }
+
+    card.style.display = "flex";
+    let html = `<div class="pit-window-timeline"><div class="pit-window-axis"><span class="pit-window-now-label">NOW</span><span class="pit-window-horizon-label">+${horizon} laps</span></div>`;
+    classRows.forEach(s => {
+        const stintLaps = parseInt(s.st) || 0;
+        const lapsUntil = Math.max(0, stintLen - stintLaps);
+        const pct       = Math.min(97, (lapsUntil / horizon) * 100);
+        const isPlayer  = s.me === true || s.me === 1;
+        const inPit     = s.pit === 1;
+        const urgency   = lapsUntil < 3 ? "pit-urgent" : lapsUntil < 8 ? "pit-soon" : "pit-normal";
+        const name      = (s.n || `#${s.c}`).substring(0, 18);
+        html += `<div class="pit-window-row${isPlayer ? " pit-window-player" : ""}">`+
+            `<div class="pit-window-name" title="${s.n || s.c}">${name}</div>`+
+            `<div class="pit-window-track">${inPit
+                ? `<div class="pit-window-pit-label">IN PIT</div>`
+                : `<div class="pit-window-marker ${urgency}" style="left:${pct.toFixed(1)}%"><div class="pit-window-marker-line"></div><div class="pit-window-marker-label">+${Math.round(lapsUntil)}</div></div>`
+            }</div></div>`;
+    });
+    body.innerHTML = html + `</div>`;
+}
+
+// ================================================================
+// STOPS REMAINING
+// ================================================================
+function renderStopsRemaining(fuel, timing) {
+    const card = document.getElementById("card-stops-remaining");
+    const body = document.getElementById("ui-stops-remaining-body");
+    if (!card || !body) return;
+    const fpl       = parseFloat(fuel?.fuelPerLap    || 0);
+    const maxLiters = parseFloat(fuel?.maxLiters     || 0);
+    const curLiters = parseFloat(fuel?.currentLiters || 0);
+    const sessionRem = parseDurationSeconds(timing?.sessionTime);
+    const completed  = parseFloat(timing?.completedLaps || 0);
+    const totalLaps  = parseFloat(timing?.totalLaps  || 0);
+    if (fpl <= 0 || maxLiters <= 0 || !sessionRem) { card.style.display = "none"; return; }
+    card.style.display = "flex";
+    const stintLen    = maxLiters / fpl;
+    const fuelLapsNow = curLiters / fpl;
+    let lapsLeft = (totalLaps > 0 && completed > 0)
+        ? Math.max(0, totalLaps - completed)
+        : (lastKnownAvgLapSeconds > 0 ? sessionRem / lastKnownAvgLapSeconds : null);
+    if (lapsLeft === null) {
+        body.innerHTML = `<div style="color:var(--text-secondary);padding:1rem;">Awaiting timing data…</div>`;
+        return;
+    }
+    const lapsAfterNow = Math.max(0, lapsLeft - fuelLapsNow);
+    const stopsNeeded  = Math.max(0, Math.ceil(lapsAfterNow / stintLen));
+    const nextPitLap   = completed + fuelLapsNow;
+    body.innerHTML = `<div class="stops-stat-grid">`+
+        `<div class="stops-stat"><div class="stops-stat-value big-stat">${stopsNeeded}</div><div class="stops-stat-label">Stops Remaining</div></div>`+
+        `<div class="stops-stat"><div class="stops-stat-value">${fuelLapsNow.toFixed(1)}</div><div class="stops-stat-label">Fuel Laps Left</div></div>`+
+        `<div class="stops-stat"><div class="stops-stat-value">${stintLen.toFixed(1)}</div><div class="stops-stat-label">Laps / Stint</div></div>`+
+        `<div class="stops-stat"><div class="stops-stat-value">L${Math.ceil(nextPitLap)}</div><div class="stops-stat-label">Next Pit Lap</div></div>`+
+        `</div>`;
+}
+
+// ================================================================
+// STINT PACE HEATMAP
+// ================================================================
+function updateStintHistory(playerStint) {
+    if (!playerStint) return;
+    const startLap = Number(playerStint.stintStartLap ?? -1);
+    if (prevStintStartLap < 0) { prevStintStartLap = startLap; prevStintData = playerStint; return; }
+    if (startLap !== prevStintStartLap && startLap > prevStintStartLap) {
+        const lapTimes = Array.isArray(prevStintData?.lapTimes)
+            ? prevStintData.lapTimes.map(p => Number(p?.seconds)).filter(s => s > 0)
+            : [];
+        if (lapTimes.length >= 2) {
+            const avgSecs  = lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length;
+            const bestSecs = Math.min(...lapTimes);
+            stintHistory.push({ stintIdx: stintHistory.length + 1, driverName: prevStintData.driverName || "?", lapCount: lapTimes.length, avgSecs, bestSecs });
+        }
+        prevStintStartLap = startLap;
+    }
+    prevStintData = playerStint;
+}
+
+function renderStintHeatmap() {
+    const card = document.getElementById("card-stint-heatmap");
+    const body = document.getElementById("ui-stint-heatmap-body");
+    if (!card || !body) return;
+    if (stintHistory.length === 0) { card.style.display = "none"; return; }
+    card.style.display = "flex";
+    const allAvg = stintHistory.map(s => s.avgSecs).filter(s => s > 0);
+    const minAvg = Math.min(...allAvg);
+    const maxAvg = Math.max(...allAvg, minAvg + 0.001);
+    let html = `<table class="heatmap-table"><thead><tr><th>Stint</th><th>Driver</th><th>Laps</th><th>Avg Lap</th><th>Best Lap</th><th>Pace</th></tr></thead><tbody>`;
+    stintHistory.forEach(s => {
+        const pct  = (s.avgSecs - minAvg) / (maxAvg - minAvg);
+        const r    = Math.round(pct * 210);
+        const g    = Math.round(200 - pct * 160);
+        const bars = Math.round((1 - pct) * 80 + 20);
+        html += `<tr style="background:rgba(${r},${g},50,0.32);"><td style="font-weight:700;">S${s.stintIdx}</td><td style="font-weight:600;">${s.driverName}</td><td style="font-family:monospace;">${s.lapCount}</td><td style="font-family:monospace;">${formatLapTime(s.avgSecs)}</td><td style="font-family:monospace;color:var(--accent-green);">${formatLapTime(s.bestSecs)}</td><td class="heatmap-bar-cell"><div class="heatmap-pace-bar" style="width:${bars}%;background:rgba(${r},${g},50,0.75);"></div></td></tr>`;
+    });
+    body.innerHTML = html + `</tbody></table>`;
+}
+
+// ================================================================
+// DRIVER ROTATION LOG
+// ================================================================
+function updateDriverRotationLog(playerStint) {
+    if (!playerStint) return;
+    const currentDriver = playerStint.driverName || "";
+    if (!currentDriver) return;
+    if (!lastKnownStintDriver) {
+        lastKnownStintDriver = currentDriver;
+    } else if (currentDriver !== lastKnownStintDriver) {
+        driverRotationLog.push({
+            no: driverRotationLog.length + 1,
+            driver: lastKnownStintDriver,
+            lapCount: lastStintLapCountForLog,
+            avgSecs:  lastStintAvgSecsForLog,
+            bestSecs: lastStintBestSecsForLog,
+            outAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        });
+        lastKnownStintDriver = currentDriver;
+    }
+    const lapTimes = Array.isArray(playerStint.lapTimes)
+        ? playerStint.lapTimes.map(p => Number(p?.seconds)).filter(s => s > 0)
+        : [];
+    lastStintLapCountForLog = lapTimes.length;
+    lastStintAvgSecsForLog  = lapTimes.length > 0 ? lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length : 0;
+    lastStintBestSecsForLog = lapTimes.length > 0 ? Math.min(...lapTimes) : 0;
+}
+
+function renderDriverRotationLog() {
+    const card = document.getElementById("card-rotation-log");
+    const body = document.getElementById("ui-rotation-log-body");
+    if (!card || !body) return;
+    if (driverRotationLog.length === 0) { card.style.display = "none"; return; }
+    card.style.display = "flex";
+    let html = `<table class="strategy-table"><thead><tr><th>Stint</th><th>Driver</th><th>Laps</th><th>Avg Lap</th><th>Best Lap</th><th>Out</th></tr></thead><tbody>`;
+    [...driverRotationLog].reverse().forEach(e => {
+        html += `<tr><td style="color:var(--text-secondary);">S${e.no}</td><td style="font-weight:600;">${e.driver}</td><td style="font-family:monospace;">${e.lapCount}</td><td style="font-family:monospace;">${e.avgSecs > 0 ? formatLapTime(e.avgSecs) : "--"}</td><td style="font-family:monospace;color:var(--accent-green);">${e.bestSecs > 0 ? formatLapTime(e.bestSecs) : "--"}</td><td style="color:var(--text-secondary);font-size:0.8rem;">${e.outAt}</td></tr>`;
+    });
+    body.innerHTML = html + `</tbody></table>`;
 }
 
 // Startup

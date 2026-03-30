@@ -1433,3 +1433,137 @@ body {
     font-weight: 600;
     color: var(--text-primary);
 }
+
+/* ================================================================
+   BROADCAST BAR
+   ================================================================ */
+.broadcast-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(10, 14, 20, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 0.55rem 1.1rem;
+    margin-bottom: 0.8rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.bb-left, .bb-right { display: flex; align-items: center; gap: 1rem; }
+.bb-center { display: flex; align-items: center; gap: 0.5rem; flex: 1; justify-content: center; flex-wrap: wrap; }
+.bb-badge { display: flex; flex-direction: column; align-items: center; gap: 0.07rem; }
+.bb-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); }
+.bb-value { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+.bb-value.bb-pos-leader { color: var(--accent-green); }
+.bb-separator { width: 1px; height: 28px; background: rgba(255, 255, 255, 0.1); }
+.bb-weather { flex-direction: row; align-items: center; gap: 0.35rem; }
+.bb-weather-icon { font-size: 0.82rem; }
+.bb-weather-sep { color: rgba(255, 255, 255, 0.2); }
+
+.bb-flag-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0.28rem 0.7rem;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    animation: bb-pulse 1.3s ease-in-out infinite;
+}
+.bb-flag-yellow   { background: rgba(255,204,0,0.12);  border: 1px solid rgba(255,204,0,0.5);  color: #ffcc00; }
+.bb-flag-red      { background: rgba(255,59,48,0.12);  border: 1px solid rgba(255,59,48,0.5);  color: #ff3b30; animation-duration: 0.7s; }
+.bb-flag-meatball { background: rgba(255,149,0,0.12);  border: 1px solid rgba(255,149,0,0.5);  color: #ff9500; }
+.bb-flag-black    { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: var(--text-primary); }
+.bb-flag-white    { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.92); }
+.bb-flag-checkered{ background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.28); color: var(--text-primary); animation: none; }
+
+.bb-repair-badge {
+    display: none;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.7rem;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: rgba(255, 59, 48, 0.12);
+    border: 1px solid rgba(255, 59, 48, 0.45);
+    color: #ff3b30;
+    animation: bb-pulse 0.85s ease-in-out infinite;
+}
+.bb-repair-badge.bb-repair-optional { background: rgba(255,149,0,0.1); border-color: rgba(255,149,0,0.4); color: #ff9500; }
+.bb-repair-countdown { font-family: monospace; font-size: 0.92rem; font-weight: 700; }
+
+@keyframes bb-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+}
+
+/* ================================================================
+   BATTLE BADGE IN LIVE TIMING
+   ================================================================ */
+.timing-table tbody tr.row-battle {
+    background: rgba(255, 149, 0, 0.05) !important;
+    outline: 1px solid rgba(255, 149, 0, 0.18);
+    outline-offset: -1px;
+}
+.battle-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    color: #ff9500;
+    animation: battle-pulse 0.9s ease-in-out infinite;
+    margin-left: 2px;
+    vertical-align: middle;
+}
+@keyframes battle-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.55; transform: scale(0.85); }
+}
+.gap-sparkline-wrap { display: inline-block; line-height: 0; vertical-align: middle; }
+
+/* ================================================================
+   PIT WINDOW MAP
+   ================================================================ */
+.pit-window-body   { width: 100%; padding: 0.25rem 0; }
+.pit-window-timeline { width: 100%; }
+.pit-window-axis   { display: flex; justify-content: space-between; padding: 0 0.25rem 0.5rem 115px; font-size: 0.68rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+.pit-window-row    { display: flex; align-items: center; height: 30px; margin-bottom: 5px; }
+.pit-window-player .pit-window-name { color: #cfe7ff; font-weight: 700; }
+.pit-window-name   { width: 115px; min-width: 115px; font-size: 0.77rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0.6rem; }
+.pit-window-track  { flex: 1; position: relative; height: 4px; background: rgba(255,255,255,0.07); border-radius: 2px; }
+.pit-window-marker { position: absolute; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); pointer-events: none; top: 0; }
+.pit-window-marker-line  { width: 2px; height: 15px; margin-top: -15px; border-radius: 1px; }
+.pit-window-marker-label { font-size: 0.65rem; font-weight: 700; white-space: nowrap; margin-top: 6px; font-family: monospace; }
+.pit-normal  .pit-window-marker-line  { background: var(--accent-blue); }
+.pit-normal  .pit-window-marker-label { color: var(--accent-blue); }
+.pit-soon    .pit-window-marker-line  { background: #ff9500; animation: bb-pulse 1.2s ease-in-out infinite; }
+.pit-soon    .pit-window-marker-label { color: #ff9500;     animation: bb-pulse 1.2s ease-in-out infinite; }
+.pit-urgent  .pit-window-marker-line  { background: var(--accent-red); animation: bb-pulse 0.7s ease-in-out infinite; }
+.pit-urgent  .pit-window-marker-label { color: var(--accent-red);      animation: bb-pulse 0.7s ease-in-out infinite; }
+.pit-window-pit-label { position: absolute; left: 2px; top: -11px; font-size: 0.64rem; font-weight: 700; color: var(--text-secondary); background: rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; }
+
+/* ================================================================
+   STOPS REMAINING
+   ================================================================ */
+.stops-remaining-body { width: 100%; }
+.stops-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 1rem; padding: 0.5rem 0; }
+.stops-stat { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.25rem; }
+.stops-stat-value { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); font-family: monospace; }
+.stops-stat-value.big-stat { font-size: 2.4rem; color: var(--accent-blue); line-height: 1; font-family: var(--font-family); }
+.stops-stat-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+
+/* ================================================================
+   STINT PACE HEATMAP
+   ================================================================ */
+.stint-heatmap-body { width: 100%; overflow-x: auto; }
+.heatmap-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.heatmap-table th { padding: 0.45rem 0.75rem; text-align: left; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.08); }
+.heatmap-table td { padding: 0.45rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.heatmap-bar-cell { width: 110px; min-width: 70px; }
+.heatmap-pace-bar { height: 5px; border-radius: 3px; transition: width 0.4s ease; }
+
+/* ================================================================
+   DRIVER ROTATION LOG
+   ================================================================ */
+.rotation-log-body { width: 100%; overflow-x: auto; }
