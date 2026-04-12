@@ -1663,7 +1663,7 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         const isLeader = s.p === 1 || s.p === "1";
         const trendHtml = buildGapSparkline(driverKey, isLeader);
         const paceRank = paceRankings.get(driverKey);
-        const rankHtml = paceRank ? `<span style="color: var(--text-secondary); font-size: 0.85rem;">#${paceRank}</span>` : `<span style="color: var(--text-secondary);">--</span>`;
+        const rankHtml = paceRank ? `<span style="color: var(--text-secondary); font-size: 0.85rem;">P${paceRank}</span>` : `<span style="color: var(--text-secondary);">--</span>`;
 
         html += `<tr class="${rowClasses.join(" ")}" style="position: relative;">
             <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:10px;">${s.p || '-'}</span></td>
@@ -1870,6 +1870,16 @@ function updateBroadcastBar(payload) {
     const bbTime = document.getElementById("bb-session-time");
     if (bbTime && timing?.sessionTime != null) bbTime.textContent = formatBroadcastTime(timing.sessionTime);
 
+    const bbSessionType = document.getElementById("bb-session-type");
+    if (bbSessionType && timing?.sessionTypeName) {
+        const raw = String(timing.sessionTypeName).trim();
+        // Shorten common names
+        const abbr = { 'race': 'RACE', 'practice': 'PRAC', 'qualify': 'QUAL',
+                        'qualifying': 'QUAL', 'lone qualify': 'L-QUAL',
+                        'open practice': 'PRAC', 'warmup': 'WARM' };
+        bbSessionType.textContent = abbr[raw.toLowerCase()] || raw.toUpperCase();
+    }
+
     const bbTrack = document.getElementById("bb-track-temp");
     const bbAir   = document.getElementById("bb-air-temp");
     if (bbTrack) bbTrack.textContent = (timing?.trackTempC > 0) ? `${Math.round(timing.trackTempC)}°` : "--°";
@@ -1892,7 +1902,6 @@ function updateBroadcastBar(payload) {
         else if (flagBits & IRFLAG_CAUTION)     { flagText = "🟡 FULL COURSE YELLOW"; flagClass = "bb-flag-yellow"; }
         else if (flagBits & IRFLAG_WHITE)        { flagText = "⬜ LAST LAP";          flagClass = "bb-flag-white"; }
         else if (flagBits & IRFLAG_CHECKERED)    { flagText = "🏁 FINISH";            flagClass = "bb-flag-checkered"; }
-        else if (flagBits & IRFLAG_SERVICEABLE)  { flagText = "⚙ MEATBALL";          flagClass = "bb-flag-meatball"; }
         else if (flagBits & IRFLAG_BLACK)        { flagText = "◼ BLACK FLAG";         flagClass = "bb-flag-black"; }
         if (flagText) {
             flagBadge.textContent = flagText;
