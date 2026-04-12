@@ -72,6 +72,7 @@ const uiTimelineCar = document.getElementById("ui-timeline-car");
 const uiPitMarkers = document.getElementById("ui-pit-markers");
 const uiStintCurrent = document.getElementById("ui-stint-current-lap");
 const uiStintTotal = document.getElementById("ui-stint-total-laps");
+const uiLapsRemaining = document.getElementById("ui-laps-remaining");
 const uiSplashBadge = document.getElementById("ui-splash-badge");
 const cardStintChart = document.getElementById("card-stint-chart");
 const uiStintChartDriver = document.getElementById("ui-stint-chart-driver");
@@ -526,6 +527,11 @@ function updateDashboard(payload) {
 
             uiStintCurrent.textContent = Math.floor(exactCurrentLap);
             uiStintTotal.textContent = Math.ceil(totalLaps);
+            if (uiLapsRemaining) {
+                const lapsLeft = Math.max(0, Math.ceil(totalLaps - exactCurrentLap));
+                uiLapsRemaining.textContent = `${lapsLeft} laps left`;
+                uiLapsRemaining.style.display = "inline";
+            }
 
             // Calculate predicted pit stops
             uiPitMarkers.innerHTML = "";
@@ -1870,8 +1876,38 @@ function updateBroadcastBar(payload) {
         bbPos.textContent = `P${playerEntry.p}`;
         bbPos.className = "bb-value" + (String(playerEntry.p) === "1" ? " bb-pos-leader" : "");
     }
-    const bbTime = document.getElementById("bb-session-time");
-    if (bbTime && timing?.sessionTime != null) bbTime.textContent = formatBroadcastTime(timing.sessionTime);
+    const bbTime      = document.getElementById("bb-session-time");
+    const bbTimeLabel = bbTime ? bbTime.closest(".bb-badge")?.querySelector(".bb-label") : null;
+    if (bbTime && timing) {
+        const totalLaps    = parseFloat(timing.totalLaps || 0);
+        const completedLaps = parseFloat(timing.completedLaps || 0);
+        const timeLeft     = parseDurationSeconds(timing.sessionTime) ?? null;
+        const isLapBased   = totalLaps > 0;
+        const isTimeBased  = timeLeft !== null && timeLeft > 0;
+
+        if (isLapBased && !isTimeBased) {
+            // Pure lap race
+            const lapsLeft = Math.max(0, Math.ceil(totalLaps - completedLaps));
+            bbTime.textContent = `${lapsLeft} L`;
+            if (bbTimeLabel) bbTimeLabel.textContent = "Laps Left";
+        } else if (isLapBased && isTimeBased) {
+            // Time + lap race — show whichever ends first (fewer laps remaining vs less time)
+            const lapsLeft = Math.max(0, Math.ceil(totalLaps - completedLaps));
+            const avgLap = lastKnownAvgLapSeconds > 0 ? lastKnownAvgLapSeconds : null;
+            const timeEquivLaps = avgLap ? timeLeft / avgLap : null;
+            if (timeEquivLaps !== null && timeEquivLaps < lapsLeft) {
+                bbTime.textContent = formatBroadcastTime(timing.sessionTime);
+                if (bbTimeLabel) bbTimeLabel.textContent = "Time Left";
+            } else {
+                bbTime.textContent = `${lapsLeft} L`;
+                if (bbTimeLabel) bbTimeLabel.textContent = "Laps Left";
+            }
+        } else if (isTimeBased) {
+            // Pure time race
+            bbTime.textContent = formatBroadcastTime(timing.sessionTime);
+            if (bbTimeLabel) bbTimeLabel.textContent = "Remaining";
+        }
+    }
 
     const bbSessionType = document.getElementById("bb-session-type");
     if (bbSessionType && timing?.sessionTypeName) {

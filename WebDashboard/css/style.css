@@ -1486,6 +1486,20 @@ body {
     color: var(--text-secondary);
     padding: 0 0.1rem;
 }
+.bb-progress-laps-left {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.bb-progress-finish {
+    position: absolute;
+    right: -0.1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9rem;
+    line-height: 1;
+    pointer-events: none;
+    z-index: 3;
+}
 .bb-left, .bb-right { display: flex; align-items: center; gap: 1rem; }
 .bb-center { display: flex; align-items: center; gap: 0.5rem; flex: 1; justify-content: center; flex-wrap: wrap; }
 .bb-badge { display: flex; flex-direction: column; align-items: center; gap: 0.07rem; }
