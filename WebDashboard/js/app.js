@@ -66,6 +66,7 @@ const uiSessionTotal = document.getElementById("ui-session-total");
 
 // Stint Planner Elements
 const cardStintPlanner = document.getElementById("card-stint-planner");
+const bbProgressRow = document.getElementById("bb-progress-row");
 const uiTimelineProgress = document.getElementById("ui-timeline-progress");
 const uiTimelineCar = document.getElementById("ui-timeline-car");
 const uiPitMarkers = document.getElementById("ui-pit-markers");
@@ -510,7 +511,8 @@ function updateDashboard(payload) {
         const _trackPct  = parseFloat(payload.timing.trackPositionPercent || 0);
         const _hasPosition = _completed > 0 || _trackPct > 0;
         if (payload.timing.totalLaps > 0 && _hasPosition) {
-            cardStintPlanner.style.display = "flex";
+            if (bbProgressRow) bbProgressRow.style.display = "flex";
+            if (cardStintPlanner) cardStintPlanner.style.display = "none";
 
             const completed = _completed;
             const trackPct = _trackPct;
@@ -575,7 +577,8 @@ function updateDashboard(payload) {
                 });
             }
         } else {
-            cardStintPlanner.style.display = "none";
+            if (bbProgressRow) bbProgressRow.style.display = "none";
+            if (cardStintPlanner) cardStintPlanner.style.display = "none";
         }
     }
 

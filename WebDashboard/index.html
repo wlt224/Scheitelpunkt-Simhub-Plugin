@@ -90,6 +90,19 @@
                     <span class="bb-value" id="bb-air-temp">--°</span>
                 </div>
             </div>
+            <!-- Race progress bar row -->
+            <div class="bb-progress-row" id="bb-progress-row" style="display:none;">
+                <div class="bb-progress-track">
+                    <div class="bb-progress-fill" id="ui-timeline-progress"></div>
+                    <div class="bb-progress-car" id="ui-timeline-car">🏎️</div>
+                    <div id="ui-pit-markers"></div>
+                </div>
+                <div class="bb-progress-labels">
+                    <span>Lap <span id="ui-stint-current-lap">0</span></span>
+                    <span id="ui-splash-badge" class="splash-badge" style="display:none;"></span>
+                    <span>Total Laps <span id="ui-stint-total-laps">--</span></span>
+                </div>
+            </div>
         </div>
 
         <!-- TAB NAVIGATION -->
@@ -332,27 +345,6 @@
 
         <!-- STRATEGY / PLAN VIEW -->
         <div id="view-plan" style="display: none; margin-top: 1rem;">
-            <main class="dashboard-grid">
-                <!-- Stint Planner Timeline Card -->
-                <section class="card glass-panel span-2" id="card-stint-planner" style="display: none;">
-                    <div class="card-header">
-                        <h3>Race Progress</h3>
-                    </div>
-                    <div class="timeline-container">
-                        <div class="timeline-track">
-                            <div class="timeline-progress" id="ui-timeline-progress"></div>
-                            <div class="timeline-car" id="ui-timeline-car">🏎️</div>
-                            <div id="ui-pit-markers"></div>
-                        </div>
-                    </div>
-                    <div class="timeline-labels">
-                        <span>Lap <span id="ui-stint-current-lap">0</span></span>
-                        <span id="ui-splash-badge" class="splash-badge" style="display:none;"></span>
-                        <span>Total Laps <span id="ui-stint-total-laps">--</span></span>
-                    </div>
-                </section>
-            </main>
-
             <main class="dashboard-grid" style="margin-top: 1.5rem;">
                 <section class="card glass-panel" id="card-stops-remaining" style="display: none;">
                     <div class="card-header">
