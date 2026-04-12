@@ -376,9 +376,11 @@ function updateDashboard(payload) {
         // Gap to leader
         uiDriverGap.textContent = isLeader ? "LEADER" : (playerLeaderboardEntry.g || "--");
 
-        // Find car immediately ahead and behind in class (by position)
-        const ahead = rows.find(r => (parseInt(r.p) || 0) === myPos - 1);
-        const behind = rows.find(r => (parseInt(r.p) || 0) === myPos + 1);
+        // Find car immediately ahead and behind in same class (by position)
+        const myClass = playerLeaderboardEntry.cl || null;
+        const classRows = myClass ? rows.filter(r => r.cl === myClass) : rows;
+        const ahead = classRows.find(r => (parseInt(r.p) || 0) === myPos - 1);
+        const behind = classRows.find(r => (parseInt(r.p) || 0) === myPos + 1);
 
         function renderRival(nameEl, intervalEl, gapEl, paceEl, rival, intervalValue, isBehind) {
             if (!rival) {
@@ -1570,6 +1572,20 @@ function getGapTrend(driverKey) {
     return { dir: delta < 0 ? 'up' : 'down', delta };
 }
 
+/**
+ * Ranks drivers by 5-lap average pace (fastest = rank 1).
+ * Returns a Map<driverKey, rank> for the given rows array.
+ */
+function computePaceRankings(rows) {
+    const withPace = rows
+        .map(s => ({ key: s.n || s.c || String(s.p), secs: parseLapToSeconds(s.a5) }))
+        .filter(d => d.secs && d.secs > 0);
+    withPace.sort((a, b) => a.secs - b.secs);
+    const map = new Map();
+    withPace.forEach((d, i) => map.set(d.key, i + 1));
+    return map;
+}
+
 function renderLeaderboard(leaderboardArr, options = {}) {
     const isDeltaMode = options.isDeltaMode === true;
 
@@ -1577,7 +1593,7 @@ function renderLeaderboard(leaderboardArr, options = {}) {
     const arrayData = getLeaderboardRows(leaderboardArr);
 
     if (!arrayData || arrayData.length === 0) {
-        uiTimingTbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: var(--text-secondary);">No live timing data available.</td></tr>`;
+        uiTimingTbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: var(--text-secondary);">No live timing data available.</td></tr>`;
         return;
     }
 
@@ -1595,6 +1611,9 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         if (playerClass) rows = arrayData.filter(s => s.cl === playerClass);
     }
     // -------------------------------------------------------------------
+
+    // Compute pace rankings for the Proj. column
+    const paceRankings = computePaceRankings(rows);
 
     // Detect battles: cars within 1.5 s of the car directly ahead
     const battleSet = new Set();
@@ -1614,7 +1633,7 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         if (isMulticlass && !classOnlyChecked && s.cl !== prevClassColor) {
             const label = s.cn || "";
             html += `<tr class="class-group-separator">
-                <td colspan="13">
+                <td colspan="11">
                     <span class="class-group-dot" style="background:${s.cl || 'transparent'};"></span>
                     <span class="class-group-name">${label}</span>
                 </td></tr>`;
@@ -1639,10 +1658,12 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         const barW = (isMulticlass && !classOnlyChecked) ? 6 : 4;
         let classColorBar = s.cl ? `<div style="width: ${barW}px; height: 100%; position: absolute; left: 0; top: 0; background-color: ${s.cl}; border-radius: 2px;"></div>` : '';
 
-        // Gap sparkline (replaces static trend arrow when enough history is available)
+        // Gap sparkline (Gap ▲▼ column) and pace rank (Proj. column)
         const driverKey = s.n || s.c || String(s.p);
         const isLeader = s.p === 1 || s.p === "1";
         const trendHtml = buildGapSparkline(driverKey, isLeader);
+        const paceRank = paceRankings.get(driverKey);
+        const rankHtml = paceRank ? `<span style="color: var(--text-secondary); font-size: 0.85rem;">#${paceRank}</span>` : `<span style="color: var(--text-secondary);">--</span>`;
 
         html += `<tr class="${rowClasses.join(" ")}" style="position: relative;">
             <td style="font-weight: bold; position: relative;">${classColorBar}<span style="margin-left:10px;">${s.p || '-'}</span></td>
@@ -1650,13 +1671,11 @@ function renderLeaderboard(leaderboardArr, options = {}) {
             <td style="font-weight: 600;">${s.n || 'Unknown'}</td>
             <td style="font-family: monospace;">${gapDisplay}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${intervalDisplay}</td>
+            <td style="text-align: center;">${rankHtml}</td>
             <td style="text-align: center;">${trendHtml}</td>
             <td style="font-family: monospace;">${formatLapDisplay(s.l)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.a5)}</td>
             <td style="font-family: monospace; color: var(--text-secondary);">${formatLapDisplay(s.b)}</td>
-            <td style="font-family: monospace; font-size: 0.85rem;">${formatSectorTime(s.s1)}</td>
-            <td style="font-family: monospace; font-size: 0.85rem;">${formatSectorTime(s.s2)}</td>
-            <td style="font-family: monospace; font-size: 0.85rem;">${formatSectorTime(s.s3)}</td>
             <td>${pitText}</td>
         </tr>`;
     });
@@ -1675,8 +1694,15 @@ function renderDriverAverages(leaderboardPayload) {
         return;
     }
 
+    // Filter to player's class in multiclass races
+    const playerRow = rows.find(s => s.me === true || s.me === 1);
+    const playerClass = playerRow?.cl || null;
+    const classRows = playerClass ? rows.filter(s => s.cl === playerClass) : rows;
+    const classLabel = playerRow?.cn || 'All Drivers';
+    const sourceRows = classRows.length >= 2 ? classRows : rows;
+
     // Parse 5-lap averages as seconds
-    const parsed = rows.map(s => {
+    const parsed = sourceRows.map(s => {
         const rawA5 = s.a5;
         const secs = parseLapToSeconds(rawA5);
         return { name: s.n || `#${s.c}`, secs, isPlayer: s.me === true || s.me === 1 };
@@ -1691,7 +1717,7 @@ function renderDriverAverages(leaderboardPayload) {
     const maxDeviation = Math.max(...parsed.map(d => Math.abs(d.secs - avg)), 0.001);
     const barMaxPct = 100; // max bar fills its entire half at max deviation
 
-    let html = `<div class="driver-avg-section-header">5-Lap Avg — All Drivers Avg: ${formatSecondsToLap(avg)}</div>`;
+    let html = `<div class="driver-avg-section-header">5-Lap Avg — ${classLabel} — Class Avg: ${formatSecondsToLap(avg)}</div>`;
     parsed.forEach(d => {
         const dev = d.secs - avg; // positive = slower, negative = faster
         const pct = Math.min(barMaxPct, (Math.abs(dev) / maxDeviation) * barMaxPct);
