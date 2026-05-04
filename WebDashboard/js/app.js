@@ -1,5 +1,5 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
 import {
     Chart,
     CategoryScale,
@@ -347,13 +347,34 @@ function isRecentData(timestamp) {
     }
 }
 
+function parseTimestampMs(timestamp) {
+    if (!timestamp) return null;
+    const timestampMs = Date.parse(timestamp);
+    return Number.isFinite(timestampMs) ? timestampMs : null;
+}
+
+function resolveTimingLapsRemaining(timing, fallbackCurrentLap = null) {
+    const pluginLapsRemaining = Number.parseFloat(timing?.lapsRemaining);
+    if (Number.isFinite(pluginLapsRemaining) && pluginLapsRemaining >= 0) {
+        return pluginLapsRemaining;
+    }
+
+    const totalLaps = Number.parseFloat(timing?.totalLaps);
+    if (Number.isFinite(totalLaps) && totalLaps > 0 && Number.isFinite(fallbackCurrentLap) && fallbackCurrentLap >= 0) {
+        return Math.max(0, totalLaps - fallbackCurrentLap);
+    }
+
+    return null;
+}
+
 function updateDashboard(payload) {
     const playerLeaderboardEntry = getPlayerLeaderboardEntry(payload);
     const isDeltaMode = shouldUseDeltaToBestMode(payload?.timing?.sessionTypeName);
 
     // Top Level
-    if (payload.timing && payload.timing.driverName) {
-        uiDriverName.textContent = payload.timing.driverName;
+    const resolvedDriverName = payload.timing?.driverName || payload.playerStint?.driverName;
+    if (resolvedDriverName) {
+        uiDriverName.textContent = resolvedDriverName;
     }
 
     if (payload.fuel && payload.fuel.carId) {
@@ -508,19 +529,25 @@ function updateDashboard(payload) {
         // Stint Planner timeline rendering
         // Only show when we have real position data — completedLaps=0 and trackPct=0
         // means the driver plugin is not installed; hide the card rather than showing "Lap 0".
-        const _completed = parseFloat(payload.timing.completedLaps || 0);
-        const _trackPct  = parseFloat(payload.timing.trackPositionPercent || 0);
-        const _hasPosition = _completed > 0 || _trackPct > 0;
-        if (payload.timing.totalLaps > 0 && _hasPosition) {
+        const timingIsFresh = isRecentData(payload.timing.timestamp);
+        const _completed = parseFloat(payload.timing.completedLaps);
+        const _trackPct  = parseFloat(payload.timing.trackPositionPercent);
+        const _totalLaps = parseFloat(payload.timing.totalLaps);
+        const _hasPosition = timingIsFresh
+            && Number.isFinite(_completed)
+            && Number.isFinite(_trackPct)
+            && (_completed > 0 || _trackPct > 0);
+        if (Number.isFinite(_totalLaps) && _totalLaps > 0 && _hasPosition) {
             if (bbProgressRow) bbProgressRow.style.display = "flex";
             if (cardStintPlanner) cardStintPlanner.style.display = "none";
 
             const completed = _completed;
             const trackPct = _trackPct;
-            const totalLaps = parseFloat(payload.timing.totalLaps);
+            const totalLaps = _totalLaps;
 
             const exactCurrentLap = Math.min(totalLaps, completed + Math.min(1, Math.max(0, trackPct)));
             const progressPct = (exactCurrentLap / totalLaps) * 100;
+            const lapsRemaining = resolveTimingLapsRemaining(payload.timing, exactCurrentLap);
 
             uiTimelineProgress.style.width = `${progressPct}%`;
             uiTimelineCar.style.left = `${Math.min(100, progressPct)}%`;
@@ -528,14 +555,22 @@ function updateDashboard(payload) {
             uiStintCurrent.textContent = Math.floor(exactCurrentLap);
             uiStintTotal.textContent = Math.ceil(totalLaps);
             if (uiLapsRemaining) {
-                const lapsLeft = Math.max(0, Math.ceil(totalLaps - exactCurrentLap));
-                uiLapsRemaining.textContent = `${lapsLeft} laps left`;
-                uiLapsRemaining.style.display = "inline";
+                if (lapsRemaining !== null) {
+                    uiLapsRemaining.textContent = `${Math.max(0, Math.ceil(lapsRemaining))} laps left`;
+                    uiLapsRemaining.style.display = "inline-flex";
+                } else {
+                    uiLapsRemaining.style.display = "none";
+                }
             }
 
             // Calculate predicted pit stops
             uiPitMarkers.innerHTML = "";
-            if (payload.fuel && payload.fuel.lapsRemaining > 0) {
+            if (uiSplashBadge) {
+                uiSplashBadge.style.display = "none";
+            }
+
+            const hasFreshFuelStrategy = payload.fuel && !fuelIsStale && isRecentData(payload.fuel.timestamp);
+            if (hasFreshFuelStrategy && payload.fuel.lapsRemaining > 0) {
                 let nextPitLap = exactCurrentLap + parseFloat(payload.fuel.lapsRemaining);
                 let markerCount = 0;
                 let tankSizeLaps = 0;
@@ -591,19 +626,11 @@ function updateDashboard(payload) {
     renderPlayerStintChart(payload.playerStint, payload.timing?.driverName || uiDriverName.textContent);
 
     // Update best-available avg lap seconds for stint-time calculation.
-    // Prefer a locally-computed outlier-filtered mean from the raw lapTimes array
-    // so that out-laps / safety-car laps / in-laps don't inflate the estimate.
-    const rawLapTimes = Array.isArray(payload.playerStint?.lapTimes)
-        ? payload.playerStint.lapTimes
-            .map(p => Number(p?.seconds))
-            .filter(s => Number.isFinite(s) && s > 0)
-        : [];
-    const filteredAvg = filteredLapAverage(rawLapTimes, 5, 0.07); // last 5, max +7 % vs window best
+    // Strategy timing should come from plugin-computed values, not dashboard-side estimates.
     const stintL5     = toPositiveNumber(payload.playerStint?.last5LapAverageSeconds);
     const stintAvg    = toPositiveNumber(payload.playerStint?.averageLapSeconds);
     const lastLapS    = parseLapTimeSeconds(payload.timing?.lastLapTime);
-    // Priority: filtered local > plugin-side 5L avg > stint avg > last lap
-    const avgCandidate = filteredAvg || stintL5 || stintAvg || lastLapS || 0;
+    const avgCandidate = stintL5 || stintAvg || lastLapS || 0;
     if (avgCandidate > 0) lastKnownAvgLapSeconds = avgCandidate;
 
     // Stint time remaining = laps remaining × avg lap time.
@@ -940,13 +967,8 @@ function renderPlayerStintChart(stintPayload, fallbackDriverName = "") {
             .filter(point => Number.isFinite(point.lap) && point.lap >= 0 && Number.isFinite(point.seconds) && point.seconds > 0)
         : [];
 
-    const averageLapSeconds = toPositiveNumber(stintPayload?.averageLapSeconds) || calculateAverageSeconds(lapTimes);
-    // Use outlier-filtered mean for 5L Avg so out-laps / SC laps don't skew the display.
-    // Falls back to the plugin-side pre-computed value when fewer than 2 clean laps exist.
-    const rawSeconds = lapTimes.map(p => p.seconds);
-    const last5LapAverageSeconds =
-        filteredLapAverage(rawSeconds, 5, 0.07) ||
-        toPositiveNumber(stintPayload?.last5LapAverageSeconds);
+    const averageLapSeconds = toPositiveNumber(stintPayload?.averageLapSeconds) || 0;
+    const last5LapAverageSeconds = toPositiveNumber(stintPayload?.last5LapAverageSeconds);
     const bestLapSeconds = lapTimes.length > 0 ? Math.min(...lapTimes.map(point => point.seconds)) : 0;
     const currentStintLaps = Number.isFinite(Number(stintPayload?.currentStintLaps))
         ? Number(stintPayload.currentStintLaps)
@@ -1869,6 +1891,8 @@ function updateBroadcastBar(payload) {
     if (!bar) return;
     const playerEntry = getPlayerLeaderboardEntry(payload);
     const timing = payload?.timing;
+    const timingTimestampMs = parseTimestampMs(timing?.timestamp);
+    const timingIsFresh = timing ? isRecentData(timing.timestamp) : false;
     bar.style.display = (timing || playerEntry) ? "flex" : "none";
 
     const bbPos = document.getElementById("bb-position");
@@ -1881,25 +1905,27 @@ function updateBroadcastBar(payload) {
     if (bbTime && timing) {
         const totalLaps    = parseFloat(timing.totalLaps || 0);
         const completedLaps = parseFloat(timing.completedLaps || 0);
+        const lapsLeft = resolveTimingLapsRemaining(timing, Number.isFinite(completedLaps) ? completedLaps : null);
         const timeLeft     = parseDurationSeconds(timing.sessionTime) ?? null;
-        const isLapBased   = totalLaps > 0;
+        const isLapBased   = totalLaps > 0 && lapsLeft !== null;
         const isTimeBased  = timeLeft !== null && timeLeft > 0;
 
-        if (isLapBased && !isTimeBased) {
+        if (!timingIsFresh) {
+            bbTime.textContent = "--";
+            if (bbTimeLabel) bbTimeLabel.textContent = "Remaining";
+        } else if (isLapBased && !isTimeBased) {
             // Pure lap race
-            const lapsLeft = Math.max(0, Math.ceil(totalLaps - completedLaps));
-            bbTime.textContent = `${lapsLeft} L`;
+            bbTime.textContent = `${Math.max(0, Math.ceil(lapsLeft))} L`;
             if (bbTimeLabel) bbTimeLabel.textContent = "Laps Left";
         } else if (isLapBased && isTimeBased) {
             // Time + lap race — show whichever ends first (fewer laps remaining vs less time)
-            const lapsLeft = Math.max(0, Math.ceil(totalLaps - completedLaps));
             const avgLap = lastKnownAvgLapSeconds > 0 ? lastKnownAvgLapSeconds : null;
             const timeEquivLaps = avgLap ? timeLeft / avgLap : null;
             if (timeEquivLaps !== null && timeEquivLaps < lapsLeft) {
                 bbTime.textContent = formatBroadcastTime(timing.sessionTime);
                 if (bbTimeLabel) bbTimeLabel.textContent = "Time Left";
             } else {
-                bbTime.textContent = `${lapsLeft} L`;
+                bbTime.textContent = `${Math.max(0, Math.ceil(lapsLeft))} L`;
                 if (bbTimeLabel) bbTimeLabel.textContent = "Laps Left";
             }
         } else if (isTimeBased) {
@@ -1951,14 +1977,17 @@ function updateBroadcastBar(payload) {
     const pitRepairLeft    = parseFloat(timing?.pitRepairLeft    || 0);
     const pitOptRepairLeft = parseFloat(timing?.pitOptRepairLeft || 0);
     if (repairBadge) {
-        if (pitRepairLeft > 0) {
+        if (!timingIsFresh) {
+            repairBadge.style.display = "none";
+            clearRepairCountdown();
+        } else if (pitRepairLeft > 0) {
             repairBadge.style.display = "inline-flex";
             repairBadge.classList.remove("bb-repair-optional");
-            startRepairCountdown(pitRepairLeft, repairCountEl);
+            startRepairCountdown(pitRepairLeft, repairCountEl, timingTimestampMs);
         } else if (pitOptRepairLeft > 0) {
             repairBadge.style.display = "inline-flex";
             repairBadge.classList.add("bb-repair-optional");
-            startRepairCountdown(pitOptRepairLeft, repairCountEl);
+            startRepairCountdown(pitOptRepairLeft, repairCountEl, timingTimestampMs);
         } else {
             repairBadge.style.display = "none";
             clearRepairCountdown();
@@ -1966,8 +1995,19 @@ function updateBroadcastBar(payload) {
     }
 }
 
-function startRepairCountdown(secondsLeft, el) {
-    const newEnd = Date.now() + secondsLeft * 1000;
+function startRepairCountdown(secondsLeft, el, sourceTimestampMs = null) {
+    const baseTimestampMs = Number.isFinite(sourceTimestampMs) && sourceTimestampMs > 0
+        ? sourceTimestampMs
+        : Date.now();
+    const newEnd = baseTimestampMs + secondsLeft * 1000;
+    if (!Number.isFinite(newEnd) || newEnd <= Date.now()) {
+        clearRepairCountdown();
+        if (el) {
+            el.textContent = formatRepairTime(0);
+        }
+        return;
+    }
+
     if (Math.abs(newEnd - _repairEndTime) < 1500 && _repairTimerInterval) return;
     clearRepairCountdown();
     _repairEndTime = newEnd;
@@ -2036,6 +2076,7 @@ function renderPitWindowMap(rows, fuel, timing) {
     const card = document.getElementById("card-pit-window");
     const body = document.getElementById("ui-pit-window-body");
     if (!card || !body) return;
+    if (!isRecentData(timing?.timestamp) || !isRecentData(fuel?.timestamp)) { card.style.display = "none"; return; }
     const fpl       = parseFloat(fuel?.fuelPerLap  || 0);
     const maxLiters = parseFloat(fuel?.maxLiters   || 0);
     if (!rows || rows.length === 0 || fpl <= 0 || maxLiters <= 0) { card.style.display = "none"; return; }
@@ -2077,20 +2118,12 @@ function renderStopsRemaining(fuel, timing) {
     const fpl       = parseFloat(fuel?.fuelPerLap    || 0);
     const maxLiters = parseFloat(fuel?.maxLiters     || 0);
     const curLiters = parseFloat(fuel?.currentLiters || 0);
-    const sessionRem = parseDurationSeconds(timing?.sessionTime);
     const completed  = parseFloat(timing?.completedLaps || 0);
-    const totalLaps  = parseFloat(timing?.totalLaps  || 0);
-    if (fpl <= 0 || maxLiters <= 0 || !sessionRem) { card.style.display = "none"; return; }
+    const lapsLeft = resolveTimingLapsRemaining(timing, Number.isFinite(completed) ? completed : null);
+    if (fpl <= 0 || maxLiters <= 0 || !isRecentData(timing?.timestamp) || !isRecentData(fuel?.timestamp) || lapsLeft === null) { card.style.display = "none"; return; }
     card.style.display = "flex";
     const stintLen    = maxLiters / fpl;
     const fuelLapsNow = curLiters / fpl;
-    let lapsLeft = (totalLaps > 0 && completed > 0)
-        ? Math.max(0, totalLaps - completed)
-        : (lastKnownAvgLapSeconds > 0 ? sessionRem / lastKnownAvgLapSeconds : null);
-    if (lapsLeft === null) {
-        body.innerHTML = `<div style="color:var(--text-secondary);padding:1rem;">Awaiting timing data…</div>`;
-        return;
-    }
     const lapsAfterNow = Math.max(0, lapsLeft - fuelLapsNow);
     const stopsNeeded  = Math.max(0, Math.ceil(lapsAfterNow / stintLen));
     const nextPitLap   = completed + fuelLapsNow;
