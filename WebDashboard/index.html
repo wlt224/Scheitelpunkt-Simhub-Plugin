@@ -27,6 +27,11 @@
             </div>
         </header>
 
+        <div id="ui-driver-plugin-warning" class="driver-plugin-warning" role="status" style="display: none;">
+            <span class="driver-plugin-warning-icon">⚠️</span>
+            <span>The current driver may not have the Scheitelpunkt plugin running. Some live data may be inaccurate.</span>
+        </div>
+
         <!-- Initial Setup Overlay (visible when no URL params provided) -->
         <div id="setup-overlay" class="overlay hidden">
             <div class="overlay-card glass-panel">
@@ -34,7 +39,7 @@
                 <p>Please enter your Firebase connection details and Room ID to view live data.</p>
                 <div class="form-group">
                     <label for="db-url">Firebase Database URL</label>
-                    <input type="text" id="db-url" placeholder="https://[project].firebasedatabase.app/">
+                    <input type="text" id="db-url" placeholder="https://[project].firebasedatabase.app (trailing / optional)">
                 </div>
                 <div class="form-group">
                     <label for="api-key">Firebase Web API Key</label>

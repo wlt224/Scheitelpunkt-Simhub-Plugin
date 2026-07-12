@@ -33,6 +33,7 @@ const uiConnectionStatus = document.getElementById("connection-status");
 const uiStatusDot = document.querySelector(".status-dot");
 const uiStatusText = document.querySelector(".status-text");
 const uiLastUpdate = document.getElementById("ui-last-update");
+const uiDriverPluginWarning = document.getElementById("ui-driver-plugin-warning");
 
 // Data UI Elements
 const uiDriverName = document.getElementById("ui-driver-name");
@@ -145,6 +146,7 @@ const FUEL_NO_DATA_TIMEOUT_MS = 60_000; // 1 min before showing "no fuel data" n
 const LAP_TIME_PLACEHOLDER = "--:--.--";
 let lastLeaderboardRows = null;   // cached for toggle re-render
 let lastIsDeltaMode = false;
+let lastOwnTeamName = "";
 // Stint history for pace heatmap
 const stintHistory = [];
 let prevStintStartLap = -1;
@@ -195,7 +197,7 @@ function init() {
 
 // Connect Button Event
 btnConnect.addEventListener("click", () => {
-    const db = inputDbUrl.value.trim() || DEFAULT_DB_URL;
+    const db = inputDbUrl.value.trim().replace(/\/+$/, "") || DEFAULT_DB_URL;
     const key = inputApiKey.value.trim() || DEFAULT_API_KEY;
     const room = inputRoomId.value.trim();
     const sheet = inputSheetUrl.value.trim();
@@ -239,7 +241,7 @@ tabBtnTiming.addEventListener("click",   () => switchTab("timing"));
 if (uiClassOnlyToggle) {
     uiClassOnlyToggle.addEventListener("change", () => {
         if (lastLeaderboardRows) {
-            renderLeaderboard(lastLeaderboardRows, { isDeltaMode: lastIsDeltaMode });
+            renderLeaderboard(lastLeaderboardRows, { isDeltaMode: lastIsDeltaMode, ownTeamName: lastOwnTeamName });
         }
     });
 }
@@ -368,6 +370,7 @@ function resolveTimingLapsRemaining(timing, fallbackCurrentLap = null) {
 }
 
 function updateDashboard(payload) {
+    updateDriverPluginWarning(payload);
     const playerLeaderboardEntry = getPlayerLeaderboardEntry(payload);
     const isDeltaMode = shouldUseDeltaToBestMode(payload?.timing?.sessionTypeName);
 
@@ -651,7 +654,8 @@ function updateDashboard(payload) {
         lastLeaderboardRows = leaderboardRows;
         lastIsDeltaMode = isDeltaMode;
         updateGapHistory(leaderboardRows);
-        renderLeaderboard(leaderboardRows, { isDeltaMode });
+        lastOwnTeamName = playerLeaderboardEntry?.teamName || playerLeaderboardEntry?.n || payload.timing?.teamName || "";
+        renderLeaderboard(leaderboardRows, { isDeltaMode, ownTeamName: lastOwnTeamName });
         renderDriverAverages(leaderboardRows);
     }
 
@@ -672,6 +676,19 @@ function updateDashboard(payload) {
     }
     renderStintHeatmap();
     renderDriverRotationLog();
+}
+
+function updateDriverPluginWarning(payload) {
+    if (!uiDriverPluginWarning) return;
+
+    const hasFreshSharedData = isRecentData(payload?.timing?.timestamp)
+        || isRecentData(payload?.leaderboard?.timestamp)
+        || isRecentData(payload?.playerStint?.timestamp);
+    const hasFreshActiveDriverFuel = isRecentData(payload?.fuel?.timestamp);
+
+    uiDriverPluginWarning.style.display = hasFreshSharedData && !hasFreshActiveDriverFuel
+        ? "flex"
+        : "none";
 }
 
 // Strategy Grid Logic
@@ -1349,6 +1366,14 @@ function getPlayerLeaderboardEntry(payload) {
         return ownTeamRow;
     }
 
+    const teamName = String(payload?.timing?.teamName || "").trim().toLowerCase();
+    if (teamName) {
+        const ownNamedTeamRow = rows.find(row => String(row?.teamName || row?.n || "").trim().toLowerCase() === teamName);
+        if (ownNamedTeamRow) {
+            return ownNamedTeamRow;
+        }
+    }
+
     const driverName = String(payload?.timing?.driverName || payload?.playerStint?.driverName || "")
         .trim()
         .toLowerCase();
@@ -1619,6 +1644,7 @@ function computePaceRankings(rows) {
 
 function renderLeaderboard(leaderboardArr, options = {}) {
     const isDeltaMode = options.isDeltaMode === true;
+    const ownTeamName = String(options.ownTeamName || "").trim().toLowerCase();
 
     // Firebase may return arrays as objects with string keys if indices are non-sequential
     const arrayData = getLeaderboardRows(leaderboardArr);
@@ -1637,7 +1663,7 @@ function renderLeaderboard(leaderboardArr, options = {}) {
     const classOnlyChecked = uiClassOnlyToggle ? uiClassOnlyToggle.checked : true;
     let rows = arrayData;
     if (isMulticlass && classOnlyChecked) {
-        const playerRow = arrayData.find(s => s.me === true || s.me === 1);
+        const playerRow = arrayData.find(s => isOwnTeamRow(s, ownTeamName));
         const playerClass = playerRow?.cl;
         if (playerClass) rows = arrayData.filter(s => s.cl === playerClass);
     }
@@ -1674,7 +1700,7 @@ function renderLeaderboard(leaderboardArr, options = {}) {
         // Pit badge
         const rowClasses = [];
         if (s.pit === 1) rowClasses.push("row-in-pit");
-        if (s.me === true || s.me === 1) rowClasses.push("row-own-team");
+        if (isOwnTeamRow(s, ownTeamName)) rowClasses.push("row-own-team");
         if (battleSet.has(String(s.p))) rowClasses.push("row-battle");
 
         let pitText = s.pit === 1 ? `<span class="pill-badge pill-gray">PIT</span>` : (s.st || "0");
@@ -1714,6 +1740,12 @@ function renderLeaderboard(leaderboardArr, options = {}) {
     uiTimingTbody.innerHTML = html;
 }
 
+function isOwnTeamRow(row, ownTeamName = "") {
+    if (row?.me === true || row?.me === 1) return true;
+    if (!ownTeamName) return false;
+    return String(row?.teamName || row?.n || "").trim().toLowerCase() === ownTeamName;
+}
+
 /**
  * Renders the Driver Pace Comparison card.
  * Shows each driver's 5-lap avg deviation from the class average as a bar.
@@ -1736,7 +1768,13 @@ function renderDriverAverages(leaderboardPayload) {
     const parsed = sourceRows.map(s => {
         const rawA5 = s.a5;
         const secs = parseLapToSeconds(rawA5);
-        return { name: s.n || `#${s.c}`, secs, isPlayer: s.me === true || s.me === 1 };
+        const parsedClassPosition = Number(s.p);
+        return {
+            name: s.n || `#${s.c}`,
+            secs,
+            classPosition: Number.isInteger(parsedClassPosition) && parsedClassPosition > 0 ? parsedClassPosition : null,
+            isPlayer: s.me === true || s.me === 1
+        };
     }).filter(d => d.secs !== null && d.secs > 0);
 
     if (parsed.length < 2) {
@@ -1756,11 +1794,12 @@ function renderDriverAverages(leaderboardPayload) {
         const devSign = dev > 0 ? '+' : '';
         const devStr = `${devSign}${dev.toFixed(3)}s`;
         const nameClass = d.isPlayer ? 'driver-avg-name is-player' : 'driver-avg-name';
+        const positionLabel = d.classPosition !== null ? `P${d.classPosition}` : '--';
         const leftFill  = isFaster ? `<div class="driver-avg-fill faster" style="width: ${pct}%"></div>` : '';
         const rightFill = !isFaster ? `<div class="driver-avg-fill slower" style="width: ${pct}%"></div>` : '';
         html += `
         <div class="driver-avg-row">
-            <div class="${nameClass}" title="${d.name}">${d.name}</div>
+            <div class="${nameClass}" title="${d.name}"><span class="driver-avg-position">${positionLabel}</span>${d.name}</div>
             <div class="driver-avg-track">
                 <div class="driver-avg-half left-half">${leftFill}</div>
                 <div class="driver-avg-center-line"></div>

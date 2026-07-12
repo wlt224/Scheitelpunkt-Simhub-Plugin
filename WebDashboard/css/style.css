@@ -58,6 +58,23 @@ body {
     padding: 1rem 0 2rem 0;
 }
 
+.driver-plugin-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: -0.75rem 0 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid rgba(255, 204, 0, 0.55);
+    border-radius: 10px;
+    background: rgba(255, 204, 0, 0.12);
+    color: #ffe58a;
+    font-size: 0.85rem;
+}
+
+.driver-plugin-warning-icon {
+    flex: 0 0 auto;
+}
+
 .logo {
     display: flex;
     align-items: center;
@@ -927,6 +944,9 @@ body {
     color: #ff9f0a;
     letter-spacing: 0.02em;
     white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .timeline-labels {
@@ -1225,6 +1245,16 @@ body {
     font-weight: 500;
 }
 
+.driver-avg-position {
+    display: inline-block;
+    min-width: 2.25rem;
+    margin-right: 0.35rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
 .driver-avg-name.is-player {
     color: var(--accent-blue);
 }
@@ -1481,14 +1511,26 @@ body {
 }
 .bb-progress-labels {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
+    align-items: center;
+    gap: 0.3rem 0.75rem;
     font-size: 0.65rem;
     color: var(--text-secondary);
-    padding: 0 0.1rem;
+    padding: 0.35rem 0.1rem 0;
+}
+.bb-progress-labels > span {
+    flex: 1 1 7rem;
+    min-width: 0;
 }
 .bb-progress-laps-left {
     font-weight: 700;
     color: var(--text-primary);
+    text-align: center;
+}
+.bb-progress-labels > .splash-badge {
+    flex: 0 1 auto;
+    margin-left: auto;
 }
 .bb-progress-finish {
     position: absolute;
